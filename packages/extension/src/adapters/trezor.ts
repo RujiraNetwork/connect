@@ -52,14 +52,103 @@ import type {
 } from "@trezor/connect-core";
 import type { AbstractTransport } from "@trezor/transport-common";
 
+function trezorFailure(error: unknown): ConnectError {
+  const parsed = z
+    .object({ code: z.string().optional(), message: z.string().optional() })
+    .safeParse(error);
+  const code = parsed.success ? parsed.data.code : undefined;
+  const message = parsed.success ? parsed.data.message : undefined;
+  switch (code) {
+    case "Method_Cancel":
+    case "Method_Interrupted":
+    case "Method_PermissionsNotGranted":
+    case "Failure_ActionCancelled":
+    case "Failure_PinCancelled":
+      return new ConnectError(
+        ERROR_CODES.rejected,
+        "You cancelled the Trezor request. You can try again when you're ready."
+      );
+    case "Device_MissingCapabilityBtcOnly":
+      return new ConnectError(
+        ERROR_CODES.unsupported,
+        "Your Trezor has Bitcoin-only firmware. THORChain and other networks need Universal firmware. You can change the firmware in Trezor Suite, or connect a Bitcoin account here."
+      );
+    case "Device_MissingCapability":
+    case "Method_Unsupported":
+      return new ConnectError(
+        ERROR_CODES.unsupported,
+        "Your Trezor's installed firmware does not support this network or signing request. Check its firmware in Trezor Suite."
+      );
+    case "Device_FwException":
+      return new ConnectError(
+        ERROR_CODES.unsupported,
+        "This request needs a different Trezor firmware version. Check for an update in Trezor Suite, then reconnect here."
+      );
+    case "Device_ModeException":
+      return new ConnectError(
+        ERROR_CODES.disconnected,
+        "Your Trezor is in setup or bootloader mode. Finish setup in Trezor Suite, then reconnect it normally."
+      );
+    case "Device_NotFound":
+    case "Device_Disconnected":
+    case "device disconnected during action":
+    case "Transport_Missing":
+      return new ConnectError(
+        ERROR_CODES.disconnected,
+        "Your paired Trezor isn't available. Reconnect it by USB and select it again."
+      );
+    case "Device_UsedElsewhere":
+    case "Device_CallInProgress":
+    case "Unable to open device":
+    case "LIBUSB_ERROR_ACCESS":
+      return new ConnectError(
+        ERROR_CODES.busy,
+        "Trezor USB is in use or could not be opened. Close Trezor Suite and other apps using this device, then reconnect it."
+      );
+    case "Failure_PinInvalid":
+      return new ConnectError(
+        ERROR_CODES.locked,
+        "The Trezor PIN wasn't accepted. Check the positions on its PIN grid and try again."
+      );
+    case "Device_InvalidState":
+      return new ConnectError(
+        ERROR_CODES.unauthorized,
+        "This Trezor passphrase opens a different wallet. Reconnect with the passphrase used for this account."
+      );
+    case "Method_InvalidParameter":
+      return new ConnectError(
+        ERROR_CODES.invalid,
+        "The request isn't in a format this Trezor signer can accept."
+      );
+    case "Device_InitializeFailed":
+      if (/Unable to open device|LIBUSB_ERROR_ACCESS/.test(message ?? ""))
+        return new ConnectError(
+          ERROR_CODES.busy,
+          "Trezor USB is in use or could not be opened. Close Trezor Suite and other apps using this device, then reconnect it."
+        );
+      return new ConnectError(
+        ERROR_CODES.disconnected,
+        "Connect couldn't start the USB connection to your Trezor. Reconnect it and try again."
+      );
+    case undefined:
+    default:
+      // Vendor errors can contain request data. Keep diagnostics classified;
+      // never forward arbitrary firmware/SDK messages to a connecting dapp.
+      return new ConnectError(
+        ERROR_CODES.internal,
+        "Connect couldn't complete the Trezor request. Reload the extension, reconnect your device, and try again."
+      );
+  }
+}
+
 function result<T>(
-  response: { success: true; payload: T } | { success: false }
+  response:
+    | { success: true; payload: T }
+    | { success: false; error?: { code?: string; message?: string } }
 ): T {
-  if (!response.success)
-    throw new ConnectError(
-      ERROR_CODES.rejected,
-      "The Trezor request was cancelled or unsupported. Unlock your device, check its screen, and try again."
-    );
+  if (!response.success) {
+    throw trezorFailure(response.error);
+  }
   return response.payload;
 }
 
@@ -229,7 +318,7 @@ export class TrezorAdapter {
         thp: { appName: "Rujira Connect", pairingMethods: ["CodeEntry"] },
       }).catch((error: unknown) => {
         this.disconnect();
-        throw error;
+        throw trezorFailure(error);
       });
     }
     return this.ready;

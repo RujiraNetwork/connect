@@ -352,7 +352,7 @@ test("registers, scopes permissions, signs, rejects, and locks in the unpacked e
         profile: "default",
       })
     );
-    expect(trezor).toMatchObject({ ok: false, error: { code: 4001 } });
+    expect(trezor).toMatchObject({ ok: false, error: { code: 4900 } });
 
     // Exercise the packaged WASM under the real extension CSP and HTTP guard.
     const recordings = z

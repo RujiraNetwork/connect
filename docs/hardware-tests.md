@@ -12,6 +12,8 @@ Ledger Monero tests use the published `@ledgerhq/hw-transport-mocker` 6.35.0. AP
 
 Trezor firmware tests use the published trezor-user-env image pinned in `scripts/hardware/compose.yaml`. Model T 2.12.5 exercises all 23 advertised native connection/signing methods, including prepared Monero signing, plus the THORChain Ethereum address profile and its custom EIP-712 domain. The test-only local Bridge transport connects SDK protobuf calls to the emulator. Production uses direct WebUSB and includes no Bridge, HTTP service or companion app. The controller confirms only public fixture requests and resets its own emulated device.
 
+The Chromium suite also registers a paired Safe 3 THORChain account through the actual packaged Connect core and USB transport. Its public USB fixture uses Trezor's published protobuf/protocol 10.0.1 tools for firmware packets. It covers Universal firmware, refusal on Bitcoin-only firmware followed by a clean retry, full model labels, and the optional passphrase step inside the Add an account form. The fixture simulates the USB boundary; it does not claim physical Safe 3 testing.
+
 To run the firmware tests (requires Docker and initial image/source downloads):
 
 ```sh

@@ -1,3 +1,4 @@
+import { ERROR_CODES } from "@rujira/connect-core";
 import { mnemonicToSeedSync } from "@scure/bip39";
 import { Transaction as EthereumTransaction } from "ethers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -232,6 +233,48 @@ describe("local Trezor connection", () => {
       "does not match"
     );
   });
+  it.each([
+    {
+      code: "Device_MissingCapabilityBtcOnly",
+      expected: ERROR_CODES.unsupported,
+      text: "Bitcoin-only firmware",
+    },
+    {
+      code: "Device_UsedElsewhere",
+      expected: ERROR_CODES.busy,
+      text: "Close Trezor Suite",
+    },
+    {
+      code: "Device_NotFound",
+      expected: ERROR_CODES.disconnected,
+      text: "paired Trezor isn't available",
+    },
+    {
+      code: "Failure_ActionCancelled",
+      expected: ERROR_CODES.rejected,
+      text: "cancelled the Trezor request",
+    },
+    {
+      code: "Runtime",
+      expected: ERROR_CODES.internal,
+      text: "Reload the extension",
+    },
+  ])(
+    "classifies $code without exposing vendor payloads, and permits retry",
+    async ({ code, expected, text }) => {
+      const adapter = new TrezorAdapter();
+      sdk.ethereumGetAddress.mockResolvedValueOnce({
+        success: false,
+        error: { code, message: "private fixture payload: never forward this" },
+      });
+      const registration = adapter.register(account);
+      await expect(registration).rejects.toMatchObject({ code: expected });
+      await expect(registration).rejects.toThrow(text);
+      await expect(registration).rejects.not.toThrow("private fixture payload");
+      expect(await adapter.register(account)).toEqual(account);
+      adapter.disconnect();
+    }
+  );
   it("binds PIN and passphrase answers to the active prompt without saving secrets", async () => {
     const adapter = new TrezorAdapter();
     await adapter.register(account);

@@ -15,7 +15,7 @@ import { useCallback, useEffect, useState } from "react";
 import { z } from "zod";
 
 import { callUi, chooseLedger, chooseTrezor, messageOf } from "./api";
-import { DevicePrompt } from "./DevicePrompt";
+import { DevicePrompt, DevicePromptFields } from "./DevicePrompt";
 import { Logo } from "./Logo";
 import { NetworkIcon } from "./NetworkIcon";
 
@@ -56,6 +56,8 @@ export function App(): ReactElement {
     null
   );
   const [keystoreLabel, setKeystoreLabel] = useState("My keystore");
+  const [deviceAnswer, setDeviceAnswer] = useState({ id: "", value: "" });
+  const [answeredPrompt, setAnsweredPrompt] = useState("");
 
   const load = useCallback(async (): Promise<void> => {
     setState(uiStateSchema.parse(await callUi({ action: "state" })));
@@ -111,6 +113,7 @@ export function App(): ReactElement {
       .finally(() => {
         setBusy(false);
         setPassword("");
+        setDeviceAnswer({ id: "", value: "" });
       })
       .catch(() => {
         /* This best-effort notification has no user-visible result. */
@@ -146,6 +149,11 @@ export function App(): ReactElement {
   }
   function register(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
+    if (registrationPrompt) {
+      respondRegistrationPrompt(false);
+      return;
+    }
+    if (busy) return;
     perform(async () => {
       if (indexError) throw new ConnectError(ERROR_CODES.invalid, indexError);
       if (sourceKind === "ledger") await chooseLedger();
@@ -162,6 +170,27 @@ export function App(): ReactElement {
       setScreen("accounts");
       setNotice(`${CHAINS[chain].name} account added`);
     });
+  }
+  function respondRegistrationPrompt(cancel: boolean, onDevice = false): void {
+    const prompt = registrationPrompt;
+    if (!prompt || answeredPrompt === prompt.id) return;
+    setAnsweredPrompt(prompt.id);
+    setError("");
+    callUi({
+      action: "deviceResponse",
+      id: prompt.id,
+      value: cancel || onDevice ? "" : promptValue,
+      cancel,
+      onDevice,
+    })
+      .then(async () => {
+        setDeviceAnswer({ id: "", value: "" });
+        await load();
+      })
+      .catch((reason: unknown) => {
+        setError(messageOf(reason));
+        setAnsweredPrompt("");
+      });
   }
   function approve(): void {
     if (!pending) return;
@@ -212,6 +241,13 @@ export function App(): ReactElement {
   const selectedPath = indexError
     ? undefined
     : accountPath(chain, parsedIndex, sourceKind, profile);
+  const registrationPrompt =
+    screen === "register" && sourceKind === "trezor" && busy
+      ? state.devicePrompt
+      : undefined;
+  const promptValue =
+    registrationPrompt?.id === deviceAnswer.id ? deviceAnswer.value : "";
+  const promptAnswered = registrationPrompt?.id === answeredPrompt;
 
   return (
     <div
@@ -243,7 +279,7 @@ export function App(): ReactElement {
             {notice}
           </div>
         )}
-        {state.devicePrompt && (
+        {state.devicePrompt && !registrationPrompt && (
           <DevicePrompt
             key={state.devicePrompt.id}
             prompt={state.devicePrompt}
@@ -447,6 +483,7 @@ export function App(): ReactElement {
                 <button
                   key={item}
                   aria-current={screen === item ? "page" : undefined}
+                  disabled={busy}
                   onClick={() => {
                     if (popup && item !== "accounts") openManager();
                     else setScreen(item);
@@ -594,6 +631,7 @@ export function App(): ReactElement {
               <section>
                 <button
                   className="text-button back"
+                  disabled={busy}
                   onClick={() => {
                     setScreen("accounts");
                   }}>
@@ -608,6 +646,7 @@ export function App(): ReactElement {
                   {(["ledger", "trezor", "keystore"] as const).map((kind) => (
                     <button
                       key={kind}
+                      disabled={busy}
                       aria-pressed={sourceKind === kind}
                       onClick={() => {
                         changeSource(kind);
@@ -695,172 +734,226 @@ export function App(): ReactElement {
                   </div>
                 )}
                 <form onSubmit={register}>
-                  <label className="field">
-                    {sourceKind === "keystore" ? "Imported keystore" : "Device"}
-                    <select
-                      value={sourceId}
-                      onChange={(event) => {
-                        setSourceId(event.target.value);
-                      }}>
-                      {sourceKind !== "keystore" ? (
-                        <option value="">
-                          Connect another{" "}
-                          {sourceKind === "ledger" ? "Ledger" : "Trezor"}
-                        </option>
-                      ) : (
-                        <option value="">Choose your keystore</option>
-                      )}
-                      {state.sources
-                        .filter((source) => source.kind === sourceKind)
-                        .map((source) => (
-                          <option key={source.id} value={source.id}>
-                            {source.label}
+                  <fieldset className="registration-fields" disabled={busy}>
+                    <label className="field">
+                      {sourceKind === "keystore"
+                        ? "Imported keystore"
+                        : "Device"}
+                      <select
+                        value={sourceId}
+                        onChange={(event) => {
+                          setSourceId(event.target.value);
+                        }}>
+                        {sourceKind !== "keystore" ? (
+                          <option value="">
+                            Connect another{" "}
+                            {sourceKind === "ledger" ? "Ledger" : "Trezor"}
+                          </option>
+                        ) : (
+                          <option value="">Choose your keystore</option>
+                        )}
+                        {state.sources
+                          .filter((source) => source.kind === sourceKind)
+                          .map((source) => (
+                            <option key={source.id} value={source.id}>
+                              {source.label}
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                    <label className="field">
+                      <span className="network-label">
+                        <NetworkIcon chain={chain} /> Network
+                      </span>
+                      <select
+                        value={chain}
+                        onChange={(event) => {
+                          changeChain(chainSchema.parse(event.target.value));
+                        }}>
+                        {CHAIN_IDS.filter(
+                          (id) => sourceKind !== "trezor" || id !== "GAIA"
+                        ).map((id) => (
+                          <option key={id} value={id}>
+                            {CHAINS[id].name}
                           </option>
                         ))}
-                    </select>
-                  </label>
-                  <label className="field">
-                    <span className="network-label">
-                      <NetworkIcon chain={chain} /> Network
-                    </span>
-                    <select
-                      value={chain}
-                      onChange={(event) => {
-                        changeChain(chainSchema.parse(event.target.value));
-                      }}>
-                      {CHAIN_IDS.filter(
-                        (id) => sourceKind !== "trezor" || id !== "GAIA"
-                      ).map((id) => (
-                        <option key={id} value={id}>
-                          {CHAINS[id].name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <div className="form-row">
-                    {!(chain === "XMR" && sourceKind === "ledger") && (
-                      <label className="field">
-                        Account index
-                        <input
-                          type="number"
-                          min={0}
-                          max={accountIndexLimit(chain, sourceKind)}
-                          step={1}
-                          required
-                          aria-invalid={Boolean(indexError)}
-                          aria-describedby="account-index-help"
-                          value={index}
-                          onChange={(event) => {
-                            setIndex(event.target.value);
-                          }}
-                        />
-                      </label>
-                    )}
-                    {((chain === "THOR" && sourceKind !== "keystore") ||
-                      chain === "BTC" ||
-                      chain === "LTC") && (
-                      <label className="field">
-                        Address type
-                        <select
-                          value={profile}
-                          onChange={(event) => {
-                            setProfile(
-                              z
-                                .enum(["default", "legacy", "evm"])
-                                .parse(event.target.value)
-                            );
-                          }}>
-                          {chain === "THOR" ? (
-                            <>
-                              {sourceKind === "ledger" && (
-                                <option value="default">THORChain app</option>
-                              )}
-                              <option value="evm">Ethereum app</option>
-                            </>
-                          ) : (
-                            <>
-                              <option value="default">Native SegWit</option>
-                              <option value="legacy">Legacy</option>
-                            </>
-                          )}
-                        </select>
-                      </label>
-                    )}
-                  </div>
-                  <p
-                    id="account-index-help"
-                    className={indexError ? "validation-error" : "muted"}>
-                    {indexError ??
-                      (chain === "BTC" && sourceKind === "ledger"
-                        ? "Use 0 for your first account. Bitcoin on Ledger supports indexes 0–100."
-                        : chain === "XMR" && sourceKind === "ledger"
-                          ? "Connect uses the wallet selected in the Monero app on your Ledger."
-                          : "Use 0 for your first account, 1 for your second, and so on.")}
-                  </p>
-                  {selectedPath &&
-                    !isDefaultAccountPath({
-                      chain,
-                      source: sourceKind,
-                      path: selectedPath,
-                    }) && (
-                      <p className="path-preview muted">
-                        HD path <code>{selectedPath}</code>
-                      </p>
-                    )}
-                  {sourceKind === "keystore" &&
-                    sourceId &&
-                    !state.unlocked.some(
-                      (entry) => entry.sourceId === sourceId
-                    ) && (
-                      <div className="card">
+                      </select>
+                    </label>
+                    <div className="form-row">
+                      {!(chain === "XMR" && sourceKind === "ledger") && (
                         <label className="field">
-                          Keystore password
+                          Account index
                           <input
-                            type="password"
-                            value={password}
-                            autoComplete="off"
+                            type="number"
+                            min={0}
+                            max={accountIndexLimit(chain, sourceKind)}
+                            step={1}
+                            required
+                            aria-invalid={Boolean(indexError)}
+                            aria-describedby="account-index-help"
+                            value={index}
                             onChange={(event) => {
-                              setPassword(event.target.value);
+                              setIndex(event.target.value);
                             }}
                           />
                         </label>
-                        <button
-                          type="button"
-                          disabled={!password || busy}
-                          onClick={() => {
-                            perform(async () => {
-                              await callUi({
-                                action: "unlock",
-                                sourceId,
-                                password,
+                      )}
+                      {((chain === "THOR" && sourceKind !== "keystore") ||
+                        chain === "BTC" ||
+                        chain === "LTC") && (
+                        <label className="field">
+                          Address type
+                          <select
+                            value={profile}
+                            onChange={(event) => {
+                              setProfile(
+                                z
+                                  .enum(["default", "legacy", "evm"])
+                                  .parse(event.target.value)
+                              );
+                            }}>
+                            {chain === "THOR" ? (
+                              <>
+                                {sourceKind === "ledger" && (
+                                  <option value="default">THORChain app</option>
+                                )}
+                                <option value="evm">Ethereum app</option>
+                              </>
+                            ) : (
+                              <>
+                                <option value="default">Native SegWit</option>
+                                <option value="legacy">Legacy</option>
+                              </>
+                            )}
+                          </select>
+                        </label>
+                      )}
+                    </div>
+                    <p
+                      id="account-index-help"
+                      className={indexError ? "validation-error" : "muted"}>
+                      {indexError ??
+                        (chain === "BTC" && sourceKind === "ledger"
+                          ? "Use 0 for your first account. Bitcoin on Ledger supports indexes 0–100."
+                          : chain === "XMR" && sourceKind === "ledger"
+                            ? "Connect uses the wallet selected in the Monero app on your Ledger."
+                            : "Use 0 for your first account, 1 for your second, and so on.")}
+                    </p>
+                    {selectedPath &&
+                      !isDefaultAccountPath({
+                        chain,
+                        source: sourceKind,
+                        path: selectedPath,
+                      }) && (
+                        <p className="path-preview muted">
+                          HD path <code>{selectedPath}</code>
+                        </p>
+                      )}
+                    {sourceKind === "keystore" &&
+                      sourceId &&
+                      !state.unlocked.some(
+                        (entry) => entry.sourceId === sourceId
+                      ) && (
+                        <div className="card">
+                          <label className="field">
+                            Keystore password
+                            <input
+                              type="password"
+                              value={password}
+                              autoComplete="off"
+                              onChange={(event) => {
+                                setPassword(event.target.value);
+                              }}
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            disabled={!password || busy}
+                            onClick={() => {
+                              perform(async () => {
+                                await callUi({
+                                  action: "unlock",
+                                  sourceId,
+                                  password,
+                                });
+                                await load();
                               });
-                              await load();
-                            });
-                          }}>
-                          Unlock keystore
-                        </button>
-                      </div>
-                    )}
+                            }}>
+                            Unlock keystore
+                          </button>
+                        </div>
+                      )}
+                  </fieldset>
+                  {registrationPrompt && (
+                    <DevicePromptFields
+                      key={registrationPrompt.id}
+                      prompt={registrationPrompt}
+                      value={promptValue}
+                      disabled={promptAnswered}
+                      onChange={(value) => {
+                        setDeviceAnswer({ id: registrationPrompt.id, value });
+                      }}
+                    />
+                  )}
                   <button
                     className="primary full"
                     type="submit"
                     disabled={
-                      busy ||
-                      Boolean(indexError) ||
-                      (sourceKind === "keystore" &&
-                        (!sourceId ||
-                          !state.unlocked.some(
-                            (entry) => entry.sourceId === sourceId
-                          )))
+                      registrationPrompt
+                        ? promptAnswered ||
+                          (registrationPrompt.kind === "pin" &&
+                            !/^[1-9]{1,50}$/.test(promptValue)) ||
+                          (registrationPrompt.kind === "pairing" &&
+                            !promptValue)
+                        : busy ||
+                          Boolean(indexError) ||
+                          (sourceKind === "keystore" &&
+                            (!sourceId ||
+                              !state.unlocked.some(
+                                (entry) => entry.sourceId === sourceId
+                              )))
                     }>
-                    {busy
-                      ? sourceKind === "keystore"
-                        ? "Adding account…"
-                        : "Check your device…"
-                      : sourceKind === "ledger"
-                        ? "Choose Ledger and add account"
-                        : "Add account"}
+                    {registrationPrompt
+                      ? promptAnswered
+                        ? "Continuing…"
+                        : registrationPrompt.kind === "pin"
+                          ? "Unlock Trezor"
+                          : registrationPrompt.kind === "passphrase"
+                            ? "Use this wallet"
+                            : registrationPrompt.kind === "pairing"
+                              ? "Pair Trezor"
+                              : "Continue"
+                      : busy
+                        ? sourceKind === "keystore"
+                          ? "Adding account…"
+                          : "Check your device…"
+                        : sourceKind === "ledger"
+                          ? "Choose Ledger and add account"
+                          : "Add account"}
                   </button>
+                  {registrationPrompt && (
+                    <div className="registration-actions">
+                      <button
+                        type="button"
+                        disabled={promptAnswered}
+                        onClick={() => {
+                          respondRegistrationPrompt(true);
+                        }}>
+                        Cancel
+                      </button>
+                      {registrationPrompt.kind === "passphrase" && (
+                        <button
+                          type="button"
+                          className="text-button"
+                          disabled={promptAnswered}
+                          onClick={() => {
+                            respondRegistrationPrompt(false, true);
+                          }}>
+                          Enter on device
+                        </button>
+                      )}
+                    </div>
+                  )}
                   {sourceKind === "ledger" && (
                     <p className="muted">
                       {chain === "XMR"

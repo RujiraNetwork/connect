@@ -239,6 +239,20 @@ p {
   width: 100%;
   margin-top: 12px;
 }
+.registration-fields {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-inline-size: 0;
+}
+.registration-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+  button {
+    flex: 1;
+  }
+}
 .card,
 .account {
   background: $black;

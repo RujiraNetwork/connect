@@ -30,6 +30,8 @@
     "@playwright/test": "^1.56.1",
     "@testing-library/jest-dom": "6.9.1",
     "@testing-library/react": "^16.3.0",
+    "@trezor/protobuf": "10.0.1",
+    "@trezor/protocol": "10.0.1",
     "@types/chrome": "^0.1.27",
     "@types/eslint-plugin-jsx-a11y": "6.10.1",
     "@types/node": "^24.10.0",

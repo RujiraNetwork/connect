@@ -20,6 +20,13 @@ export default defineConfig({
       enforce: "pre",
       resolveId(source, importer) {
         if (
+          importer?.includes("/@trezor/connect-core/lib/core/") &&
+          /(?:^|\/)method(?:\.js)?$/.test(source)
+        )
+          return resolve(
+            "packages/extension/src/adapters/offline-trezor-methods.ts"
+          );
+        if (
           importer?.includes("/@trezor/connect-core/") &&
           /\/workers\/workers(?:\.js)?$/.test(source)
         )

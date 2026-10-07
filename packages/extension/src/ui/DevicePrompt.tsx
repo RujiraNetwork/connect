@@ -5,6 +5,52 @@ import { callUi, messageOf } from "./api";
 import type { DevicePrompt as Prompt } from "@rujira/connect-core";
 import type { ReactElement } from "react";
 
+export function DevicePromptFields({
+  prompt,
+  value,
+  onChange,
+  disabled = false,
+}: {
+  readonly prompt: Prompt;
+  readonly value: string;
+  readonly onChange: (value: string) => void;
+  readonly disabled?: boolean;
+}): ReactElement {
+  return (
+    <div className="device-prompt" role="group" aria-label="Trezor connection">
+      <h2>
+        {prompt.kind === "pin"
+          ? "Unlock your Trezor"
+          : prompt.kind === "passphrase"
+            ? "Choose your Trezor wallet"
+            : "Connect your Trezor"}
+      </h2>
+      <p>{prompt.message}</p>
+      {prompt.kind !== "confirmation" && (
+        <label className="field">
+          {prompt.kind === "pin"
+            ? "PIN grid positions"
+            : prompt.kind === "passphrase"
+              ? "Wallet passphrase"
+              : "Pairing code"}
+          <input
+            type={prompt.kind === "pairing" ? "text" : "password"}
+            autoComplete="off"
+            value={value}
+            disabled={disabled}
+            maxLength={prompt.kind === "pin" ? 50 : 1024}
+            pattern={prompt.kind === "pin" ? "[1-9]{1,50}" : undefined}
+            required={prompt.kind !== "passphrase"}
+            onChange={(event) => {
+              onChange(event.target.value);
+            }}
+          />
+        </label>
+      )}
+    </div>
+  );
+}
+
 export function DevicePrompt({
   prompt,
   onError,
@@ -28,34 +74,15 @@ export function DevicePrompt({
   }
   return (
     <section className="card device-prompt" aria-label="Trezor connection">
-      <h2>
-        {prompt.kind === "pin"
-          ? "Unlock your Trezor"
-          : prompt.kind === "passphrase"
-            ? "Choose your Trezor wallet"
-            : "Connect your Trezor"}
-      </h2>
-      <p>{prompt.message}</p>
-      {prompt.kind !== "confirmation" && (
-        <label className="field">
-          {prompt.kind === "pin"
-            ? "PIN grid positions"
-            : prompt.kind === "passphrase"
-              ? "Wallet passphrase"
-              : "Pairing code"}
-          <input
-            type={prompt.kind === "pairing" ? "text" : "password"}
-            autoComplete="off"
-            value={value}
-            maxLength={1024}
-            onChange={(event) => {
-              setValue(event.target.value);
-            }}
-          />
-        </label>
-      )}
+      <DevicePromptFields
+        prompt={prompt}
+        value={value}
+        onChange={setValue}
+        disabled={sending}
+      />
       <div className="approval-actions">
         <button
+          type="button"
           disabled={sending}
           onClick={() => {
             respond(true);
@@ -63,6 +90,7 @@ export function DevicePrompt({
           Cancel
         </button>
         <button
+          type="button"
           className="primary"
           disabled={
             sending ||
@@ -77,6 +105,7 @@ export function DevicePrompt({
       </div>
       {prompt.kind === "passphrase" && (
         <button
+          type="button"
           className="text-button"
           disabled={sending}
           onClick={() => {
