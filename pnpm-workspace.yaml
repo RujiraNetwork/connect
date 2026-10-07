@@ -1,0 +1,19 @@
+packages:
+  - "packages/*"
+allowBuilds:
+  "@parcel/watcher": false
+  bufferutil: false
+  unrs-resolver: false
+  utf-8-validate: false
+  esbuild: true
+  "@swc/core": true
+  protobufjs: false
+  usb: false
+minimumReleaseAgeExclude:
+  - "@ledgerhq/device-management-kit@1.11.0"
+  - "@xchainjs/xchain-client@2.0.18"
+  - "@xchainjs/xchain-monero@0.2.9"
+
+peerDependencyRules:
+  allowedVersions:
+    utf-8-validate: "6"

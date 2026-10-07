@@ -1,0 +1,86 @@
+--- a/src/wallet/wallet_rpc_server.cpp
++++ b/src/wallet/wallet_rpc_server.cpp
+@@ -1249,6 +1249,14 @@
+       return false;
+     }
+ 
++    // Rujira exposes signed bytes only. This path must never submit a transaction.
++    if (!req.do_not_relay)
++    {
++      er.code = WALLET_RPC_ERROR_CODE_DENIED;
++      er.message = "Rujira signing requires do_not_relay";
++      return false;
++    }
++
+     CHECK_MULTISIG_ENABLED();
+ 
+     // validate the transfer requested and populate dsts & extra
+@@ -1259,6 +1267,11 @@
+ 
+     try
+     {
++      if (m_wallet->get_account().get_device().has_ki_cold_sync())
++      {
++        uint64_t spent = 0, unspent = 0;
++        m_wallet->cold_key_image_sync(spent, unspent);
++      }
+       uint64_t mixin = m_wallet->adjust_mixin(req.ring_size ? req.ring_size - 1 : 0);
+       uint32_t priority = m_wallet->adjust_priority(req.priority);
+       std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_2(dsts, mixin, priority, extra, req.account_index, req.subaddr_indices, req.subtract_fee_from_outputs);
+@@ -1276,6 +1289,33 @@
+         er.code = WALLET_RPC_ERROR_CODE_TX_TOO_LARGE;
+         er.message = "Transaction would be too large.  try /transfer_split.";
+         return false;
++      }
++
++      if (m_wallet->get_account().get_device().has_tx_cold_sign())
++      {
++        std::vector<cryptonote::address_parse_info> destinations;
++        for (const auto &destination : req.destinations)
++        {
++          cryptonote::address_parse_info info;
++          if (!cryptonote::get_account_address_from_str(info, m_wallet->nettype(), destination.address))
++          {
++            er.code = WALLET_RPC_ERROR_CODE_WRONG_ADDRESS;
++            er.message = "Invalid device signing destination";
++            return false;
++          }
++          destinations.push_back(info);
++        }
++        wallet2::signed_tx_set signed_txs;
++        std::vector<std::string> device_aux;
++        m_wallet->cold_sign_tx(ptx_vector, signed_txs, destinations, device_aux);
++        m_wallet->cold_tx_aux_import(signed_txs.ptx, device_aux);
++        if (!m_wallet->import_key_images(signed_txs, 0, true) || signed_txs.ptx.size() != 1)
++        {
++          er.code = WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR;
++          er.message = "Device signing did not produce one complete transaction";
++          return false;
++        }
++        ptx_vector = std::move(signed_txs.ptx);
+       }
+ 
+       return fill_response(ptx_vector, req.get_tx_key, res.tx_key, res.amount, res.amounts_by_dest, res.fee, res.weight, res.multisig_txset, res.unsigned_txset, req.do_not_relay,
+@@ -4837,6 +4877,7 @@
+   {
+     res.version = WALLET_RPC_VERSION;
+     res.release = MONERO_VERSION_IS_RELEASE;
++    res.rujira_device_signing = 1;
+     return true;
+   }
+   //------------------------------------------------------------------------------------------------------------------------------
+--- a/src/wallet/wallet_rpc_server_commands_defs.h
++++ b/src/wallet/wallet_rpc_server_commands_defs.h
+@@ -2563,10 +2563,12 @@
+     {
+       uint32_t version;
+       bool release;
++      uint32_t rujira_device_signing;
+ 
+       BEGIN_KV_SERIALIZE_MAP()
+         KV_SERIALIZE(version)
+         KV_SERIALIZE(release)
++        KV_SERIALIZE(rujira_device_signing)
+       END_KV_SERIALIZE_MAP()
+     };
+     typedef epee::misc_utils::struct_init<response_t> response;

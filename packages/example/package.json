@@ -1,0 +1,10 @@
+{
+  "name": "@rujira/connect-example",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@rujira/connect": "workspace:*",
+    "ethers": "^6.15.0",
+    "@rujira/connect-core": "workspace:*"
+  }
+}

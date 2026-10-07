@@ -1,0 +1,165 @@
+{
+  "amino": {
+    "account_number": "0",
+    "chain_id": "thorchain-1",
+    "fee": {
+      "amount": [],
+      "gas": "200000"
+    },
+    "memo": "",
+    "msgs": [
+      {
+        "type": "cosmos-sdk/MsgSend",
+        "value": {
+          "from_address": "thor1zcnkhl0md8j2k8jep6tg6m58kptjnf3qzw72f4",
+          "to_address": "thor1zcnkhl0md8j2k8jep6tg6m58kptjnf3qzw72f4",
+          "amount": [
+            {
+              "amount": "1",
+              "denom": "rune"
+            }
+          ]
+        }
+      }
+    ],
+    "sequence": "0"
+  },
+  "typed": {
+    "types": {
+      "Coin": [
+        {
+          "name": "denom",
+          "type": "string"
+        },
+        {
+          "name": "amount",
+          "type": "string"
+        }
+      ],
+      "EIP712Domain": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "version",
+          "type": "string"
+        },
+        {
+          "name": "chainId",
+          "type": "uint256"
+        },
+        {
+          "name": "verifyingContract",
+          "type": "string"
+        },
+        {
+          "name": "salt",
+          "type": "string"
+        }
+      ],
+      "Fee": [
+        {
+          "name": "amount",
+          "type": "Coin[]"
+        },
+        {
+          "name": "gas",
+          "type": "string"
+        }
+      ],
+      "Tx": [
+        {
+          "name": "account_number",
+          "type": "string"
+        },
+        {
+          "name": "chain_id",
+          "type": "string"
+        },
+        {
+          "name": "fee",
+          "type": "Fee"
+        },
+        {
+          "name": "memo",
+          "type": "string"
+        },
+        {
+          "name": "sequence",
+          "type": "string"
+        },
+        {
+          "name": "msg0",
+          "type": "TypeMsgSend0"
+        }
+      ],
+      "TypeMsgSend0": [
+        {
+          "name": "value",
+          "type": "TypeValue0"
+        },
+        {
+          "name": "type",
+          "type": "string"
+        }
+      ],
+      "TypeValue0": [
+        {
+          "name": "to_address",
+          "type": "string"
+        },
+        {
+          "name": "from_address",
+          "type": "string"
+        },
+        {
+          "name": "amount",
+          "type": "TypeValueAmount0[]"
+        }
+      ],
+      "TypeValueAmount0": [
+        {
+          "name": "denom",
+          "type": "string"
+        },
+        {
+          "name": "amount",
+          "type": "string"
+        }
+      ]
+    },
+    "primaryType": "Tx",
+    "domain": {
+      "name": "Cosmos Web3",
+      "version": "1.0.0",
+      "chainId": "0x1",
+      "verifyingContract": "cosmos",
+      "salt": "0"
+    },
+    "message": {
+      "account_number": "0",
+      "chain_id": "thorchain-1",
+      "fee": {
+        "amount": [],
+        "gas": "200000"
+      },
+      "memo": "",
+      "msg0": {
+        "type": "cosmos-sdk/MsgSend",
+        "value": {
+          "amount": [
+            {
+              "amount": "1",
+              "denom": "rune"
+            }
+          ],
+          "from_address": "thor1zcnkhl0md8j2k8jep6tg6m58kptjnf3qzw72f4",
+          "to_address": "thor1zcnkhl0md8j2k8jep6tg6m58kptjnf3qzw72f4"
+        }
+      },
+      "sequence": "0"
+    }
+  },
+  "digest": "0x1e98f64f14168644d5940de5a19d29b0617bb08e495a4bc8da8c810d3cf17cce"
+}

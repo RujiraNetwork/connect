@@ -1,0 +1,10 @@
+{
+  "name": "@rujira/connect-companion",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@rujira/connect-core": "workspace:*",
+    "zod": "^3.25.76"
+  }
+}

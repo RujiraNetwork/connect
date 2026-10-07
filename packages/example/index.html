@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rujira Connect · Integration example</title>
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">RUJIRA CONNECT / DAPP EXAMPLE</p>
+      <h1>Ask for a signature.</h1>
+      <p>
+        This app prepares a signing request. Rujira Connect handles the approval
+        and signer.
+      </p>
+      <button id="connect">Connect registered accounts</button
+      ><label for="account">Signing account</label
+      ><select id="account">
+        <option value="">Connect to choose an account</option></select
+      ><label for="message">Personal message (Ethereum networks)</label
+      ><textarea id="message">Hello from Rujira Connect</textarea
+      ><button id="sign">Request signature</button
+      ><label for="native">Chain-native signing request (JSON)</label
+      ><textarea
+        id="native"
+        rows="8"
+        placeholder='{"method":"signAmino","params":{"chain_id":"thorchain-1", ...}}'></textarea
+      ><button id="native-sign">Sign native request</button>
+      <details>
+        <summary>Broadcast a signed EVM transaction from this dapp</summary>
+        <p>
+          Broadcasting is handled here, outside the extension. Supply your own
+          RPC endpoint and signed transaction.
+        </p>
+        <label for="rpc">HTTPS RPC URL</label
+        ><input id="rpc" type="url" /><label for="transaction"
+          >Signed transaction</label
+        ><textarea id="transaction"></textarea
+        ><button id="broadcast">Broadcast transaction</button>
+      </details>
+      <pre id="output" aria-live="polite">
+Install the extension, then connect an account.</pre>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
