@@ -72,6 +72,20 @@ a {
   align-items: center;
   padding: 26px 30px;
   border-bottom: 1px solid #ffffff0d;
+  gap: 16px;
+}
+.network-credit {
+  margin-left: auto;
+  color: $grey;
+  font-size: 12px;
+  text-align: right;
+  text-decoration: none;
+  white-space: nowrap;
+  &:hover,
+  &:focus-visible {
+    color: $pink;
+    text-decoration: underline;
+  }
 }
 .brand {
   display: flex;
@@ -281,10 +295,7 @@ p {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-}
-.account-address {
-  display: flex;
-  align-items: center;
+  flex-shrink: 0;
   gap: 6px;
 }
 .icon-button {

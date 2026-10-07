@@ -1,4 +1,5 @@
 node_modules/
+packages/monero-kernel/target/
 dist/
 coverage/
 playwright-report/

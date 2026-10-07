@@ -1,8 +1,8 @@
 # Rujira Connect
 
-Rujira Connect is a Chromium extension that gives dapps access to approved addresses and chain-native signatures from Ledger, Trezor, and encrypted THORChain/XChain keystores. Dapps own transaction preparation, simulation, RPC selection, fees, and broadcasting. The extension reads addresses over direct device connections, manages site permissions, and signs locally. It makes no HTTP, RPC, balance, fee, name-resolution, or telemetry requests. The separate Monero companion is the sole network exception: its current hardware engine prepares transfers using a configured node.
+Rujira Connect is a Chromium extension that gives dapps access to approved addresses and chain-native signatures from Ledger, Trezor, and encrypted THORChain/XChain keystores. Dapps own transaction preparation, simulation, RPC selection, fees, and broadcasting. The extension reads addresses over direct device connections, manages site permissions, and signs locally. It makes no HTTP, RPC, balance, fee, name-resolution, or telemetry requests. This applies to Monero too.
 
-This is a developer preview. The browser flow and software signing can be exercised locally. Hardware adapters require the device acceptance checks in [Validation](docs/validation.md) before a public mainnet release. Monero signing requires the separately installed, patched native engine described in [Monero setup](docs/monero.md); reading and confirming its address does not.
+This is a developer preview. The browser flow and software signing can be exercised locally. Hardware adapters require the device acceptance checks in [Validation](docs/validation.md) before a public mainnet release. See [Monero signing](docs/monero.md) for its prepared-data contract and current source limits.
 
 ## Run and load
 
@@ -27,7 +27,7 @@ Install the isolated test browser once with `pnpm exec playwright install chromi
 
 The registry includes THORChain, Bitcoin, Bitcoin Cash, Litecoin, Dogecoin, Ethereum, BNB Smart Chain, Avalanche C-Chain, Base, Cosmos Hub, XRP Ledger, TRON, Solana, and Monero. Actual methods depend on the registered source, address profile, device model, firmware, and installed app. Dapps must call `getCapabilities()` and check current THORChain inbound network availability independently. See [Signing formats and source support](docs/integration.md#signing-formats).
 
-Trezor THORChain registration uses an Ethereum-derived address and EIP-712 Amino signing. The dapp supplies the prepared EIP-712 representation alongside the Amino document; Connect validates both locally. Trezor does not expose a Cosmos Hub signer through this implementation. Monero addresses are read directly from Ledger or Trezor, or derived locally from an unlocked keystore. Monero signing for all three sources uses the local companion and returns transaction bytes without relay. Settings explains companion setup once a Monero account is present.
+Trezor THORChain registration uses an Ethereum-derived address and EIP-712 Amino signing. The dapp supplies the prepared EIP-712 representation alongside the Amino document; Connect validates both locally. Trezor does not expose a Cosmos Hub signer through this implementation. Monero addresses are read directly from Ledger or Trezor, or derived locally from an unlocked keystore. Ledger and Trezor sign prepared Monero transactions directly over HID/USB; encrypted keystores sign locally. All three return native signed bytes after local Bulletproof+, CLSAG and commitment-balance verification. No separate app or node configuration is needed.
 
 Account removal also removes that account from every site permission and cancels its pending requests. Wallet metadata and other accounts remain available. Nondefault account paths are shown in account cards and request reviews. Ledger Bitcoin default wallets use account indices 0–100, inclusive.
 
@@ -56,18 +56,17 @@ The SDK also supplies EIP-6963 discovery with an EIP-1193 signing provider, Cosm
 
 | Package              | Responsibility                                                               |
 | -------------------- | ---------------------------------------------------------------------------- |
-| `packages/core`      | Strict request schemas, chain registry, permissions, native messages         |
+| `packages/core`      | Strict request schemas, chain registry, permissions, prepared signing data   |
 | `packages/sdk`       | Dapp bridge, EVM discovery, Cosmos and Solana interfaces                     |
 | `packages/extension` | MV3 service worker, isolated messaging, approvals, source adapters, React UI |
-| `packages/companion` | Local native host, encrypted Monero wallet files, device signing engine      |
 | `packages/example`   | Dapp integration and separate broadcasting example                           |
 
 TypeScript uses strict checking, exact optional properties, unchecked-index protection, and exhaustive switches. ESLint’s strict and stylistic type-aware rules reject unsafe values, unhandled promises, non-null assertions, deprecated APIs, import cycles, and inaccessible controls; CI allows zero lint warnings. UI code cannot import signing drivers or hardware libraries.
 
-The React, SCSS, component, formatting, and branding patterns follow the sibling `../ui` project. The Rujira symbol, pink/purple gradient, dark surfaces, typography, and spacing are copied into this workspace. Fonts and icons are bundled locally. See [Architecture and security](docs/architecture.md).
+The React, SCSS, component, formatting, and branding patterns follow the sibling `../ui` project. The dark surfaces, typography, spacing, and pink/purple palette are copied into this workspace. Connect uses the supplied Graphic.svg product icon rather than the RUJI token symbol. Fonts and icons are bundled locally. See [Architecture and security](docs/architecture.md).
 
 ## Build and packaging
 
-`pnpm build` produces the unpacked extension, compiled SDK/core libraries with declarations, integration example, and bundled Node native host. The SDK and core package manifests use `publishConfig.exports` to ship compiled `dist` entrypoints; workspace development uses TypeScript sources. Nothing is published or installed into a browser automatically.
+`pnpm build` produces the unpacked extension, compiled SDK/core libraries with declarations, and integration example. The SDK and core package manifests use `publishConfig.exports` to ship compiled `dist` entrypoints; workspace development uses TypeScript sources. Nothing is published or installed into a browser automatically.
 
-The Monero engine is built separately with `pnpm companion:build-engine`. Its build downloads the pinned upstream source and applies the included device-signing patch. The installer records the exact extension ID in Chrome’s native messaging allowlist. Distribution signing, store submission, independent security review, and physical device acceptance remain release tasks.
+The Connect icon source is `packages/extension/src/ui/assets/connect.svg`. Run `pnpm build:icons` after editing it to regenerate Chrome's PNG sizes and the EVM/Solana discovery icon. Distribution signing, store submission, independent security review, and physical device acceptance remain release tasks.

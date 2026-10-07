@@ -58,8 +58,6 @@ export const uiRequestSchema = z
         chain: chainSchema,
         accountIndex: z.number().int().min(0).max(MAX_ACCOUNT_INDEX),
         profile: z.enum(["default", "legacy", "evm"]),
-        restoreHeight: z.number().int().nonnegative().optional(),
-        password: z.string().max(1024).optional(),
       })
       .strict(),
     z
@@ -99,10 +97,6 @@ export const uiRequestSchema = z
         onDevice: z.boolean(),
         cancel: z.boolean(),
       })
-      .strict(),
-    z.object({ action: z.literal("companionStatus") }).strict(),
-    z
-      .object({ action: z.literal("setMoneroNode"), url: z.string().url() })
       .strict(),
   ])
   .superRefine((request, context) => {

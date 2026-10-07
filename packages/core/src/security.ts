@@ -46,6 +46,11 @@ export function validateSignAccount(
   account: Account,
   request: SignRequest
 ): void {
+  if (account.id !== request.accountId)
+    throw new ConnectError(
+      ERROR_CODES.unauthorized,
+      "The signing request is for a different account."
+    );
   if (account.chain !== request.chain)
     throw new ConnectError(
       ERROR_CODES.wrongChain,

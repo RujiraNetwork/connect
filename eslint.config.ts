@@ -14,6 +14,7 @@ export default defineConfig(
       "coverage/**",
       "test-results/**",
       "playwright-report/**",
+      "packages/extension/src/adapters/monero-kernel/**",
     ],
   },
   eslint.configs.recommended,
@@ -77,7 +78,7 @@ export default defineConfig(
       "no-debugger": "error",
       "no-restricted-imports": [
         "error",
-        { patterns: ["**/../extension/src/**", "**/../companion/src/**"] },
+        { patterns: ["**/../extension/src/**"] },
       ],
     },
   },

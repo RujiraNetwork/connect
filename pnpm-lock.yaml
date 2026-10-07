@@ -11,6 +11,9 @@ importers:
       '@eslint/js':
         specifier: ^9.39.2
         version: 9.39.5
+      '@ledgerhq/hw-transport-mocker':
+        specifier: 6.35.0
+        version: 6.35.0
       '@playwright/test':
         specifier: ^1.56.1
         version: 1.63.0
@@ -90,15 +93,6 @@ importers:
         specifier: ^5.0.3
         version: 5.0.3(@types/node@24.19.1)(jsdom@27.4.0(@noble/hashes@2.4.0)(bufferutil@4.1.0)(supports-color@7.2.0)(utf-8-validate@6.0.6))(vite@7.3.6(@types/node@24.19.1)(jiti@2.7.0)(sass@1.105.1)(tsx@4.23.15))
 
-  packages/companion:
-    dependencies:
-      '@rujira/connect-core':
-        specifier: workspace:*
-        version: link:../core
-      zod:
-        specifier: ^3.25.76
-        version: 3.25.76
-
   packages/core:
     dependencies:
       zod:
@@ -161,6 +155,9 @@ importers:
       '@ledgerhq/hw-transport':
         specifier: 6.35.6
         version: 6.35.6
+      '@noble/ciphers':
+        specifier: 2.2.0
+        version: 2.2.0
       '@noble/curves':
         specifier: ^1.9.7
         version: 1.9.7
@@ -890,6 +887,9 @@ packages:
 
   '@ledgerhq/hw-app-xrp@6.38.0':
     resolution: {integrity: sha512-BuFoCmuZptBQdFH8XOxN9ZANqxsDJddlH0vq2zdlE+Sx31D8hqRTK+K7xPjb0RTNstFmrkkzaVBXJ2zOm0pebw==}
+
+  '@ledgerhq/hw-transport-mocker@6.35.0':
+    resolution: {integrity: sha512-ib6CKTYh+fbwahgAuKUrVvl9zHSf9rfLcnalcWQvlY9A4NQ4dkz0P+QlLaR8GeHVNPg29nhzpCQN7+hRlzSU+g==}
 
   '@ledgerhq/hw-transport@6.35.6':
     resolution: {integrity: sha512-Eg1SsOgY9jAVPTBfhCVzj5WvzqlYS08Ip+DMX33tG6rjcCibDVjwjU2LuxYmTawd4Jo83bYm+Fpg8hIwN+bBNw==}
@@ -5330,6 +5330,13 @@ snapshots:
     dependencies:
       '@ledgerhq/hw-transport': 6.36.0
       bip32-path: 0.4.2
+
+  '@ledgerhq/hw-transport-mocker@6.35.0':
+    dependencies:
+      '@ledgerhq/hw-transport': 6.36.0
+      '@ledgerhq/logs': 6.19.0
+      events: 3.3.0
+      rxjs: 7.8.2
 
   '@ledgerhq/hw-transport@6.35.6':
     dependencies:

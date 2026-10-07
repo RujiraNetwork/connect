@@ -155,10 +155,10 @@ test("registers Cosmos and Monero through bundled WebHID and groups one Nano S i
     ).toBeVisible();
     await expect(
       manager.locator(
-        '.account-address button[aria-label="Copy Monero address"] svg'
+        '.account-actions button[aria-label="Copy Monero address"] svg'
       )
     ).toBeVisible();
-    await expect(manager.locator(".account-actions svg")).toHaveCount(3);
+    await expect(manager.locator(".account-actions svg")).toHaveCount(6);
     await manager
       .getByRole("button", { name: "Settings", exact: true })
       .click();
@@ -167,8 +167,17 @@ test("registers Cosmos and Monero through bundled WebHID and groups one Nano S i
       "Ledger Nano S · bbbbbbbb"
     );
     await expect(
-      manager.getByRole("heading", { name: "Monero signing", exact: true })
+      manager.getByRole("heading", { name: "Monero", exact: true })
     ).toBeVisible();
+    await expect(manager.getByLabel("Node URL", { exact: true })).toHaveCount(
+      0
+    );
+    await expect(
+      manager.getByRole("button", { name: "Check companion", exact: true })
+    ).toHaveCount(0);
+    expect(
+      await worker.evaluate(() => chrome.runtime.getManifest().permissions)
+    ).toEqual(["storage", "alarms"]);
     await manager.screenshot({
       path: "test-results/rujira-connect-settings.png",
       fullPage: true,
@@ -200,7 +209,7 @@ test("registers Cosmos and Monero through bundled WebHID and groups one Nano S i
     expect(saved).toMatchObject({
       sources: [{ id: sourceId, deviceName: "Ledger Nano S" }],
       accounts: [
-        { chain: "XMR" },
+        { chain: "XMR", methods: [...supportedMethods("XMR", "ledger")] },
         { methods: [...supportedMethods("GAIA", "ledger")] },
         {},
       ],

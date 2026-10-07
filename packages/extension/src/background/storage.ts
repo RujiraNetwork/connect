@@ -1,7 +1,34 @@
-import { EMPTY_STATE, stateSchema } from "@rujira/connect-core";
+import {
+  EMPTY_STATE,
+  chainSchema,
+  sourceKindSchema,
+  stateSchema,
+  supportedMethods,
+} from "@rujira/connect-core";
+import { z } from "zod";
 
 import type { StateRepository } from "./broker";
 import type { StoredState, Account, WalletSource } from "@rujira/connect-core";
+
+/** Preserve registered addresses and grants when retiring native-host capabilities. */
+export function migrateStoredState(value: unknown): StoredState {
+  const previous = z
+    .object({
+      accounts: z.array(
+        z.object({ chain: chainSchema, source: sourceKindSchema }).passthrough()
+      ),
+    })
+    .passthrough()
+    .parse(value);
+  return stateSchema.parse({
+    ...previous,
+    accounts: previous.accounts.map((account) =>
+      account.chain === "XMR"
+        ? { ...account, methods: [...supportedMethods("XMR", account.source)] }
+        : account
+    ),
+  });
+}
 
 function sameHardwareWallet(
   state: StoredState,
@@ -116,7 +143,7 @@ export class ChromeStateRepository implements StateRepository {
       .then((stored) =>
         stored.state === undefined
           ? structuredClone(EMPTY_STATE)
-          : mergeHardwareSources(stateSchema.parse(stored.state))
+          : mergeHardwareSources(migrateStoredState(stored.state))
       );
     return this.state.then((state) => structuredClone(state));
   }

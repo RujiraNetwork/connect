@@ -1,10 +1,25 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve, join } from "node:path";
 
 import { chromium, expect, test } from "@playwright/test";
+import {
+  accountSchema,
+  responseSchema,
+  uiStateSchema,
+  signRequestSchema,
+  signedMoneroTransactionSchema,
+} from "@rujira/connect-core";
 import { encryptToKeyStore } from "@xchainjs/xchain-crypto";
 import { verifyMessage } from "ethers";
+import { z } from "zod";
+
+import { fromHex } from "../src/adapters/bytes";
+import {
+  initSync,
+  verify_transaction,
+  wipe,
+} from "../src/adapters/monero-kernel/kernel";
 
 import type { Page } from "@playwright/test";
 
@@ -338,6 +353,112 @@ test("registers, scopes permissions, signs, rejects, and locks in the unpacked e
       })
     );
     expect(trezor).toMatchObject({ ok: false, error: { code: 4001 } });
+
+    // Exercise the packaged WASM under the real extension CSP and HTTP guard.
+    const recordings = z
+      .array(z.object({ account: accountSchema, request: signRequestSchema }))
+      .parse(
+        JSON.parse(
+          await readFile(
+            resolve(
+              "packages/extension/src/adapters/fixtures/trezor-signing.json"
+            ),
+            "utf8"
+          )
+        )
+      );
+    const record = recordings.find(
+      (entry) => entry.request.method === "signMoneroTransaction"
+    );
+    if (!record) throw new Error("No public Monero fixture");
+    const native = {
+      account: accountSchema.parse(record.account),
+      request: signRequestSchema.parse(record.request),
+    };
+    if (native.request.method !== "signMoneroTransaction")
+      throw new Error("No native fixture");
+    const stateResponse = responseSchema.parse(
+      await manager.evaluate(() =>
+        chrome.runtime.sendMessage({ action: "state" })
+      )
+    );
+    if (!stateResponse.ok) throw new Error("No extension state");
+    const source = uiStateSchema
+      .parse(stateResponse.result)
+      .sources.find((entry) => entry.kind === "keystore");
+    if (!source) throw new Error("No imported fixture keystore");
+    await manager.evaluate(
+      (sourceId) =>
+        chrome.runtime.sendMessage({
+          action: "unlock",
+          sourceId,
+          password: "test-only-password",
+        }),
+      source.id
+    );
+    const registration = responseSchema.parse(
+      await manager.evaluate(
+        (sourceId) =>
+          chrome.runtime.sendMessage({
+            action: "register",
+            sourceId,
+            source: "keystore",
+            chain: "XMR",
+            accountIndex: 0,
+            profile: "default",
+          }),
+        source.id
+      )
+    );
+    if (!registration.ok) throw new Error(registration.error.message);
+    const monero = accountSchema.parse(registration.result);
+    expect(monero.address).toBe(native.account.address);
+    const connectionWindow = context.waitForEvent("page");
+    const connection = dapp.evaluate(() =>
+      window.rujira?.connect({ chains: ["XMR"] })
+    );
+    approval = await connectionWindow;
+    await approval.waitForURL(/view=approve/);
+    await approval.getByRole("checkbox").check();
+    await approval
+      .getByRole("button", { name: "Connect", exact: true })
+      .click();
+    await connection;
+    await approval.close();
+    const signingWindow = context.waitForEvent("page");
+    const signature = dapp.evaluate(
+      (request) => window.rujira?.request(request),
+      { ...native.request, accountId: monero.id }
+    );
+    approval = await signingWindow;
+    await approval.waitForURL(/view=approve/);
+    await expect(
+      approval.getByText(
+        native.request.params.tsx_data.outputs[0]?.original ?? "",
+        { exact: true }
+      )
+    ).toBeVisible();
+    await approval.getByRole("button", { name: "Sign", exact: true }).click();
+    const transfer = await signature;
+    expect(transfer?.method).toBe("signMoneroTransaction");
+    const payload = signedMoneroTransactionSchema.parse(transfer?.payload);
+    const binary = await readFile(
+      new URL("../src/adapters/monero-kernel/kernel.base64", import.meta.url),
+      "utf8"
+    );
+    initSync({ module: Buffer.from(binary, "base64") });
+    try {
+      expect(
+        verify_transaction(
+          fromHex(payload.transactionHex),
+          JSON.stringify(native.request.params.inputs),
+          crypto.getRandomValues(new Uint8Array(32))
+        )
+      ).toBe(payload.transactionHash);
+    } finally {
+      wipe();
+    }
+    await approval.close();
     expect(outbound).toEqual([]);
     expect(errors).toEqual([]);
   } finally {

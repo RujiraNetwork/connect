@@ -13,6 +13,8 @@ export {
   ERROR_CODES,
   signRequestSchema,
   capabilitiesSchema,
+  preparedMoneroTransactionSchema,
+  signedMoneroTransactionSchema,
 } from "@rujira/connect-core";
 export type {
   Chain,
@@ -21,4 +23,6 @@ export type {
   SignRequest,
   SignResult,
   SigningMethod,
+  PreparedMoneroTransaction,
+  SignedMoneroTransaction,
 } from "@rujira/connect-core";

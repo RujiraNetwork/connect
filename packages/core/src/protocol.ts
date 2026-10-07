@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { CHAIN_IDS } from "./chains";
+import { preparedMoneroTransactionSchema } from "./monero";
 
 export const PROTOCOL_VERSION = 1;
 export const CHANNEL = "rujira-connect-v1";
@@ -50,7 +51,7 @@ export const accountSchema = z
         "signSolanaMessage",
         "signXrpTransaction",
         "signTronTransaction",
-        "signMoneroTransfer",
+        "signMoneroTransaction",
       ])
     ),
   })
@@ -306,27 +307,8 @@ export const signRequestSchema = z.discriminatedUnion("method", [
   z
     .object({
       ...base,
-      method: z.literal("signMoneroTransfer"),
-      params: z
-        .object({
-          destinations: z
-            .array(
-              z
-                .object({
-                  address: z.string().min(95).max(106),
-                  amount: decimalSchema,
-                })
-                .strict()
-            )
-            .min(1)
-            .max(16),
-          priority: z.number().int().min(0).max(4),
-          accountIndex: z.number().int().nonnegative(),
-          maxFee: decimalSchema,
-          restoreHeight: z.number().int().nonnegative(),
-          memo: z.string().max(250).optional(),
-        })
-        .strict(),
+      method: z.literal("signMoneroTransaction"),
+      params: preparedMoneroTransactionSchema,
     })
     .strict(),
 ]);

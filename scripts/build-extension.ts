@@ -1,4 +1,4 @@
-import { copyFile, mkdir, writeFile } from "node:fs/promises";
+import { copyFile, cp, mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import { build } from "tsup";
@@ -37,7 +37,7 @@ const manifest = {
     default_popup: "index.html?view=popup",
   },
   background: { service_worker: "background.js", type: "module" },
-  permissions: ["storage", "alarms", "nativeMessaging"],
+  permissions: ["storage", "alarms"],
   content_scripts: [
     {
       matches: ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"],
@@ -56,7 +56,7 @@ const manifest = {
   ],
   content_security_policy: {
     extension_pages:
-      "script-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-src 'none'; frame-ancestors 'none'",
+      "script-src 'self' 'wasm-unsafe-eval'; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-src 'none'; frame-ancestors 'none'",
   },
   icons: {
     16: "icons/16.png",
@@ -68,4 +68,10 @@ const manifest = {
 await writeFile(
   resolve("packages/extension/dist/manifest.json"),
   `${JSON.stringify(manifest, null, 2)}\n`
+);
+
+await cp(
+  "packages/monero-kernel/licenses",
+  "packages/extension/dist/licenses/monero",
+  { recursive: true }
 );

@@ -6,6 +6,7 @@ import {
 import { formatUnits } from "ethers";
 
 import { fromHex } from "./bytes";
+import { recipient, validateMoneroTransaction } from "./monero-transactions";
 import { thorTypedData } from "./thor-eip712";
 import {
   outputAddress,
@@ -159,21 +160,27 @@ export function reviewRequest(
     case "signTronTransaction":
       validateTron(account, request.params);
       break;
-    case "signMoneroTransfer":
-      for (const destination of request.params.destinations)
-        fields.push({
-          label: "Recipient",
-          value: `${formatUnits(destination.amount, 12)} XMR → ${destination.address}`,
-        });
+    case "signMoneroTransaction": {
+      validateMoneroTransaction(account, request.params);
+      const destination = recipient(request.params);
       fields.push(
+        { label: "Recipient", value: destination.original },
         {
-          label: "Maximum fee",
-          value: `${formatUnits(request.params.maxFee, 12)} XMR`,
+          label: "Amount",
+          value: `${formatUnits(destination.amount, 12)} XMR`,
         },
-        { label: "Memo", value: request.params.memo ?? "—" }
+        {
+          label: "Fee",
+          value: `${formatUnits(request.params.tsx_data.fee, 12)} XMR`,
+        },
+        {
+          label: "Change",
+          value: `${formatUnits(request.params.tsx_data.change_dts.amount, 12)} XMR → ${account.address}`,
+        }
       );
       rawRequired = false;
       break;
+    }
   }
   return {
     title:

@@ -1,58 +1,37 @@
-# Monero companion setup
+# Offline Monero connection and signing
 
-Monero addresses connect offline without a companion. Ledger uses its public-key and address-display commands over the official HID transport; Trezor uses the bundled `moneroGetAddress` method. Keystore addresses are derived locally. Registration validates the address checksum and public keys and asks hardware users to confirm the address. It does not export private hardware keys or contact a node.
+Monero addresses connect directly to Ledger over WebHID or Trezor over WebUSB. Keystore addresses are derived locally. Ledger uses the wallet selected in its Monero app, represented internally by `device`; Trezor uses `m/44'/128'/account'`. Registration verifies the checksum and public keys and asks hardware users to confirm the address. It never exports private hardware keys or contacts a node.
 
-Signing uses a local Rujira native host and a patched Monero wallet engine. Hardware spend keys stay on Ledger or Trezor. Software signing setup passes derived keys into an encrypted native wallet. Every transfer returns signed transaction bytes with `do_not_relay` enabled; the dapp submits them separately.
+## Division of responsibility
 
-Monero is the sole exception to Connect’s local-only signing contract. The current native engine needs a node to scan outputs and prepare rings. Upstream’s standard `sign_transfer` API rejects hardware wallets, so accepting an app-prepared unsigned file is not a drop-in replacement for this Ledger/Trezor flow. That does not mean Monero signatures inherently need a network connection. A future offline hardware path should delegate output discovery and transaction preparation to the dapp.
+The dapp owns wallet scanning, spendable-output discovery, key-image synchronization, decoy selection, fee estimation, transaction preparation, and broadcasting. It must already possess the watch-only wallet data and key images required to prepare inputs. Connect does not expose a private view-key export or a key-image synchronization API yet, and never requests those secrets implicitly.
 
-## Build the engine
+Connect accepts prepared construction data, checks it locally, displays the recipient, amount, exact fee, and change, and asks the device to sign. It returns `{ transactionHex, transactionHash, fee, amount }`; amounts and fees in the result are decimal piconero strings. The dapp can broadcast the returned transaction. No companion, native wallet file, local password, restore height, priority selector, node URL, or network request is part of this flow.
 
-The build pins Monero v0.18.4.6 at commit `dbcc7d212c094bd1a45f7291dbb99a4b4627a96d`, verifies the checkout, and applies `packages/companion/native/device-signing.patch`. Read the [upstream build requirements](https://github.com/monero-project/monero/tree/v0.18.4.6#compiling-monero-from-source). Install CMake, a C++ compiler, Boost, OpenSSL, Unbound, libsodium, ZeroMQ, HIDAPI, libusb, readline, protobuf/protoc, and the Trezor Python protobuf dependencies. The Linux CI job includes a concrete dependency setup.
+## Prepared request
 
-```sh
-pnpm companion:build-engine --source /absolute/path/to/new/monero-build --jobs 2
-```
+Use `signMoneroTransaction` and the SDK's exported `PreparedMoneroTransaction` type and `preparedMoneroTransactionSchema`. The old destination-only `signMoneroTransfer` request is rejected. `params` contains:
 
-The source directory must be new. Binaries are written to `build/rujira/bin` inside it. The script fails if CMake silently disables Trezor support. Keep the upstream license and third-party notices with distributed binaries. Builds for macOS and Windows need the corresponding upstream toolchain; the included host installer handles Chrome registration on those platforms after the engine exists.
+- `format: "monero-prepared-v1"` (the older `trezor-monero-v1` alias is accepted) and `networkType: 0`.
+- `inputs`: native Trezor/Monero source entries containing amounts, commitment masks, transaction public keys, real-output positions, minor subaddress indices, and 16 ring members with global output indices and destination/commitment keys.
+- `keyImages`: the corresponding 32-byte key images in input order. Inputs must be sorted by descending key-image bytes, as Monero requires. These are checked against Ledger/keystore input derivation and the signed native transaction; Trezor also binds them through its returned prefix hash.
+- `tsx_data`: native Trezor transaction construction data with one standard mainnet recipient and one change output, exact fee, account zero, `num_inputs`, `minor_indices`, no integrated indices, mixin 15, hard fork 16, unlock time zero, client version 3, and construction version 1.
+- `tsx_data.rsig_data`: `{ rsig_type: 3, bp_version: 4, grouping: [2] }`. This selects the two-output Bulletproof+ flow. Ledger and keystore proofs are generated locally; Trezor generates its proof on the device. The serialized transaction version is 2.
 
-The patch adds the same key-image sync and cold-signing calls used by Monero’s CLI to the RPC transfer path. This matters for Trezor: an unmodified RPC `transfer` path does not finish cold signing. The patched `get_version` reports `rujira_device_signing: 1`. The host probes this marker before using the engine and rejects stock binaries. The patched transfer path rejects relay requests.
+Output entries include `amount`, `original` (address), `addr.spend_public_key`, `addr.view_public_key`, `is_subaddress: false`, and `is_integrated: false`. `change_dts` must appear exactly once in the output list and belong to the registered account. Address strings and public keys must agree. Native numeric amounts and global indices must be safe JS integers; larger values are rejected instead of rounded. The dapp must validate current chain conditions and use its own Monero construction engine to create real input/ring data. The SDK schema validates the transport shape, not blockchain availability.
 
-## Install the native host
+## Current limits
 
-Build the workspace, load the unpacked extension, and copy its ID from Chrome’s extension page.
+Direct transaction signing is implemented for Ledger’s Monero protocol v4, supported Trezor firmware through bundled Connect core and direct USB, and encrypted keystores with local spend/view key derivation. The initial format supports 1–32 RingCT inputs, 16-member rings, a standard mainnet recipient plus change, CLSAG, and Bulletproof+. Integrated addresses, recipient subaddresses, extra payment IDs, arbitrary unlock times, multiple recipients, and multisig are outside this format.
 
-```sh
-pnpm build
-pnpm companion:install \
-  --extension-id <32-character-extension-id> \
-  --engine-dir /absolute/path/to/monero-build/build/rujira/bin
-```
+## Verification
 
-The installer is explicit and local. It writes a launcher, bundled host, private configuration, and native messaging manifest for the exact extension ID. It uses the current Node.js executable, so retain a working Node 24 installation at that path. If the extension ID changes, reinstall its manifest. Chrome must be restarted if it does not discover a newly registered host.
+The packaged WebAssembly kernel verifies each native transaction's Bulletproof+, CLSAG signatures against the prepared rings/key images, commitment balance and transaction hash. Its crypto dependencies are pinned to monero-oxide commit `731657ae3385be667abb556266369a497bc86f13`. This verifies cryptographic validity locally; the dapp remains responsible for actual chain outputs, unspent status, decoy policy and current network fees.
 
-The data locations are `~/Library/Application Support/Rujira Connect` on macOS, `~/.local/share/rujira-connect` on Linux, and `%LOCALAPPDATA%\Rujira\Connect` on Windows. Wallet files are encrypted by Monero; the directory must remain private. The manifest goes in Chrome’s user NativeMessagingHosts directory or its Windows HKCU registry entry. Other Chromium distributions need their own native-host registration location.
+Ledger Nano S app 2.1.1 has been exercised on published Speculos 0.23.0, with real signature mode, encrypted secret handles, ring positions 0, 2 and 15, and a two-input transfer using a minor subaddress and an additional transaction key. The captured APDUs replay in normal tests using Ledger's published mock transport. Trezor Model T firmware 2.12.5 has been exercised with the published trezor-user-env emulator; its native result is saved as a public-seed regression fixture. Keystore tests cover 1–2 inputs, minor subaddresses, additional transaction keys and rejection of altered proof/signature data. No funded wallet or transaction broadcast was used.
 
-## Register an address
+See [hardware tests](hardware-tests.md) to rerun firmware tests and [kernel build](../packages/monero-kernel/README.md) to reproduce the bundled cryptography. Physical-device and security-review release checks remain in [Validation](validation.md).
 
-Choose Monero in the extension’s registration form. Select the source, connect the device, and confirm the address. Open the Monero app on Ledger first; Connect uses its on-device wallet selection and does not show an account-index field. Trezor supports `m/44'/128'/account'`. Unlock an imported keystore before registration. No native wallet password, restore height, companion, or node is needed to add an address.
+The adapter follows the [Trezor Monero signing protocol](https://github.com/trezor/trezor-firmware/tree/main/core/src/apps/monero/signing) and [Monero RingCT serialization](https://github.com/monero-project/monero/blob/v0.18.4.6/src/ringct/rctTypes.h).
 
-Ledger Monero registration bypasses DMK's generic session ping and app-switch actions. It sends only the native Monero client handshake, public-key request, and address-display request. The handshake and public-key read have ten-second deadlines; device confirmation allows almost five minutes. An error identifies the failed step and closes the connection so another attempt can start cleanly.
-
-Settings prompts for companion setup after adding a Monero account. The first signing request creates an encrypted native wallet using the registered account ID and verifies its address against the browser record. Its current scan starts at height zero. Subsequent requests reuse that wallet. Unlock a software keystore before its first signing setup.
-
-Signing prompts for the native wallet password every time. This password unlocks the encrypted local wallet; it is distinct from a keystore password, Ledger PIN, or Trezor passphrase. The signer must use the same device/passphrase that registered the address. The engine verifies the primary address again before signing.
-
-## Node and transfer behavior
-
-The default public node is `https://xmr-node.cakewallet.com:18081`. Settings can select another HTTPS node or an HTTP node on localhost. Public-node RPC is treated as untrusted. Use your own node when you want control over the service that sees your scan requests. Availability and scan time depend on the node and restore height.
-
-The native engine refreshes outputs, creates one standard transfer, synchronizes Trezor key images when required, asks the hardware to sign, and returns raw bytes. The host rejects split transactions, nonzero transfer account indices, memo-bearing transfers, fee mismatches, destination/network mismatches, and unsafe JSON integer amounts. A THORChain Monero deposit must use current memo-less deposit instructions prepared by the dapp.
-
-Saving a node updates the private `config.json` and survives native-host restarts. The installer also accepts `--node <https-url>`. Forgetting a browser source currently removes browser permissions and metadata; remove corresponding encrypted native wallet files manually if retiring that source entirely.
-
-## Validation and distribution
-
-The TypeScript host builds with the workspace and the native patch applies cleanly to the pinned source. Complete the native build and hardware tests in [Validation](validation.md) before distributing a mainnet installer. No binaries are fetched and executed by the extension. A future packaged installer must ship verified engine binaries and a stable Node runtime, include licenses, and be signed for each target operating system.
-
-Implementation references are Monero’s [CLI cold signing](https://github.com/monero-project/monero/blob/v0.18.4.6/src/simplewallet/simplewallet.cpp) and [wallet RPC transfer](https://github.com/monero-project/monero/blob/v0.18.4.6/src/wallet/wallet_rpc_server.cpp).
+Ledger follows the [official Ledger Monero app](https://github.com/LedgerHQ/app-monero). Host cryptography uses [monero-oxide](https://github.com/monero-oxide/monero-oxide).

@@ -39,7 +39,14 @@ export function evmTransaction(params: EvmTransaction): EthersTransaction {
     ...(params.maxPriorityFeePerGas === undefined
       ? {}
       : { maxPriorityFeePerGas: BigInt(params.maxPriorityFeePerGas) }),
-    ...(params.type === undefined ? {} : { type: params.type }),
+    type:
+      params.type ??
+      (params.maxFeePerGas !== undefined ||
+      params.maxPriorityFeePerGas !== undefined
+        ? 2
+        : params.accessList !== undefined
+          ? 1
+          : 0),
     ...(params.accessList === undefined
       ? {}
       : { accessList: params.accessList }),

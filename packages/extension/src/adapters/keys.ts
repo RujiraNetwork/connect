@@ -97,7 +97,7 @@ export function addressFor(
   }
   if (chain === "SOL") return base58.encode(publicKey);
   if (chain === "XMR")
-    throw new Error("Monero addresses are registered through the companion");
+    throw new Error("Monero addresses use their own local address derivation");
   if (chain === "BCH")
     return cashaddr.encode(
       "bitcoincash",

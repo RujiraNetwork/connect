@@ -11,7 +11,6 @@ import {
 
 import { RequestBroker } from "./broker";
 import { WalletDriver } from "./driver";
-import { CompanionClient } from "./native";
 import { blockNetwork } from "./offline";
 import { ChromeStateRepository, removeAccount } from "./storage";
 
@@ -19,8 +18,7 @@ import type { UiRequest } from "@rujira/connect-core";
 
 const repository = new ChromeStateRepository();
 blockNetwork();
-const companion = new CompanionClient();
-const driver = new WalletDriver(repository, companion);
+const driver = new WalletDriver(repository);
 const ports = new Set<chrome.runtime.Port>();
 
 async function changed(origin?: string): Promise<void> {
@@ -261,14 +259,6 @@ async function ui(request: UiRequest): Promise<unknown> {
     case "deviceResponse":
       driver.deviceResponse(request);
       return null;
-    case "companionStatus":
-      return companion.request({ method: "status", id: crypto.randomUUID() });
-    case "setMoneroNode":
-      return companion.request({
-        method: "setNode",
-        id: crypto.randomUUID(),
-        url: request.url,
-      });
   }
 }
 

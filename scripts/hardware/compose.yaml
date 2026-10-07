@@ -1,0 +1,15 @@
+name: rujira-hardware-tests
+services:
+  ledger:
+    build:
+      context: .
+      dockerfile: ledger.Dockerfile
+    ports:
+      - "127.0.0.1:5010:5000"
+  trezor:
+    image: ghcr.io/trezor/trezor-user-env@sha256:e92c0e62172c1a24a4f7661fa7b752c6eb0f2c64d542a75bb64f3aff3c7c48cf
+    environment:
+      MACOS: "1"
+    ports:
+      - "127.0.0.1:9001:9001"
+      - "127.0.0.1:21328:21328"

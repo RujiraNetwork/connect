@@ -8,6 +8,7 @@ import {
 } from "@rujira/connect-core";
 import { PublicKey } from "@solana/web3.js";
 import TrezorConnect, {
+  PROTO,
   UI_REQUEST,
   UI_REQUESTS,
   UI_RESPONSE,
@@ -21,7 +22,12 @@ import { z } from "zod";
 import { base64, fromHex, toHex } from "./bytes";
 import { addressFor, utxoNetwork } from "./keys";
 import { pathNumbers } from "./ledger";
+import { verifyMoneroCryptography, wipeMoneroKernel } from "./monero-crypto";
 import { moneroPublicKeys } from "./monero-keys";
+import {
+  assembleMoneroTransaction,
+  validateMoneroTransaction,
+} from "./monero-transactions";
 import {
   evmTransaction,
   solanaTransaction,
@@ -44,6 +50,7 @@ import type {
   SignTransaction as TrezorSignTransaction,
   UiRequestMessage,
 } from "@trezor/connect-core";
+import type { AbstractTransport } from "@trezor/transport-common";
 
 function result<T>(
   response: { success: true; payload: T } | { success: false }
@@ -78,6 +85,10 @@ class OfflineUsbTransport extends AbstractApiTransport {
 }
 
 export class TrezorAdapter {
+  constructor(
+    private readonly transportFactory: () => AbstractTransport = () =>
+      new OfflineUsbTransport()
+  ) {}
   private ready: Promise<void> | undefined;
   prompt: DevicePrompt | undefined;
   async deviceInfo(): Promise<{ deviceId?: string; deviceName: string }> {
@@ -210,7 +221,7 @@ export class TrezorAdapter {
         },
         // Connect's vendored declaration duplicates this same transport's protected fields.
         transports: [
-          new OfflineUsbTransport() as unknown as NonNullable<
+          this.transportFactory() as unknown as NonNullable<
             NonNullable<Parameters<typeof TrezorConnect.init>[0]>["transports"]
           >[number],
         ],
@@ -332,6 +343,8 @@ export class TrezorAdapter {
 
   async sign(account: Account, request: SignRequest): Promise<unknown> {
     validateSignAccount(account, request);
+    if (request.method === "signMoneroTransaction")
+      validateMoneroTransaction(account, request.params);
     await this.init();
     const verified = await this.register(account);
     if (
@@ -345,7 +358,10 @@ export class TrezorAdapter {
     switch (request.method) {
       case "eth_signTransaction": {
         const tx = evmTransaction(request.params);
-        if (request.params.accessList?.length)
+        if (
+          (tx.type !== 0 && tx.type !== 2) ||
+          request.params.accessList?.length
+        )
           throw new ConnectError(
             ERROR_CODES.unsupported,
             "This Trezor adapter does not support access-list transactions"
@@ -375,9 +391,13 @@ export class TrezorAdapter {
           })
         );
         tx.signature = Signature.from({
-          r: `0x${signature.r}`,
-          s: `0x${signature.s}`,
-          v: Number(BigInt(`0x${signature.v}`)),
+          r: `0x${toHex(fromHex(signature.r))}`,
+          s: `0x${toHex(fromHex(signature.s))}`,
+          v: Number(
+            BigInt(
+              signature.v.startsWith("0x") ? signature.v : `0x${signature.v}`
+            )
+          ),
         });
         return tx.serialized;
       }
@@ -469,19 +489,30 @@ export class TrezorAdapter {
         tx.addSignature(new PublicKey(account.address), fromHex(signature));
         return { transaction: base64(tx.serialize()) };
       }
-      case "signSolanaMessage":
+      case "signSolanaMessage": {
+        const bytes = fromHex(request.params.message);
+        let message: string;
+        try {
+          message = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+        } catch {
+          throw new ConnectError(
+            ERROR_CODES.unsupported,
+            "Trezor supports UTF-8 Solana messages. This message contains binary data."
+          );
+        }
+        const response = result(
+          await TrezorConnect.solanaSignMessage({ path: account.path, message })
+        );
+        if (!response.signedData)
+          throw new ConnectError(
+            ERROR_CODES.unsupported,
+            "This Trezor firmware does not return the signed Solana message. Update it before signing messages."
+          );
         return {
-          signature: base64(
-            fromHex(
-              result(
-                await TrezorConnect.solanaSignMessage({
-                  path: account.path,
-                  message: toHex(fromHex(request.params.message)),
-                })
-              ).signature
-            )
-          ),
+          signature: base64(fromHex(response.signature)),
+          signedData: response.signedData,
         };
+      }
       case "signXrpTransaction": {
         const tx = z
           .object({
@@ -546,11 +577,40 @@ export class TrezorAdapter {
           ERROR_CODES.unsupported,
           "This Trezor account has no native Cosmos signer"
         );
-      case "signMoneroTransfer":
-        throw new ConnectError(
-          ERROR_CODES.unsupported,
-          "Monero signing uses the companion"
+      case "signMoneroTransaction": {
+        const signed = assembleMoneroTransaction(
+          account,
+          request.params,
+          result(
+            await TrezorConnect.moneroSignTransaction({
+              path: account.path,
+              networkType: PROTO.MoneroNetworkType.MAINNET,
+              inputs: request.params.inputs,
+              tsx_data: {
+                ...request.params.tsx_data,
+                outputs: request.params.tsx_data.outputs.map((output) => ({
+                  ...output,
+                  original: toHex(new TextEncoder().encode(output.original)),
+                })),
+                change_dts: {
+                  ...request.params.tsx_data.change_dts,
+                  original: toHex(
+                    new TextEncoder().encode(
+                      request.params.tsx_data.change_dts.original
+                    )
+                  ),
+                },
+              },
+            })
+          )
         );
+        try {
+          verifyMoneroCryptography(request.params, signed);
+          return signed;
+        } finally {
+          wipeMoneroKernel();
+        }
+      }
     }
   }
 

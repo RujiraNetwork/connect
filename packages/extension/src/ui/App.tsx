@@ -56,9 +56,6 @@ export function App(): ReactElement {
     null
   );
   const [keystoreLabel, setKeystoreLabel] = useState("My keystore");
-  const [moneroNode, setMoneroNode] = useState(
-    "https://xmr-node.cakewallet.com:18081"
-  );
 
   const load = useCallback(async (): Promise<void> => {
     setState(uiStateSchema.parse(await callUi({ action: "state" })));
@@ -205,15 +202,11 @@ export function App(): ReactElement {
     (account) => account.id === signingRequest?.accountId
   );
   const signingSource = signingAccount?.source;
-  const isMonero =
-    pending?.request.method === "sign" &&
-    pending.request.params.chain === "XMR";
   const needsPassword =
-    isMonero ||
-    (signingSource === "keystore" &&
-      !state.unlocked.some(
-        (entry) => entry.sourceId === signingAccount?.sourceId
-      ));
+    signingSource === "keystore" &&
+    !state.unlocked.some(
+      (entry) => entry.sourceId === signingAccount?.sourceId
+    );
   const parsedIndex = index.trim() ? Number(index) : Number.NaN;
   const indexError = accountIndexError(chain, sourceKind, parsedIndex);
   const selectedPath = indexError
@@ -230,6 +223,13 @@ export function App(): ReactElement {
             <strong>RUJIRA</strong>
             <small>CONNECT</small>
           </span>
+        </a>
+        <a
+          className="network-credit"
+          href="https://rujira.network/"
+          target="_blank"
+          rel="noopener noreferrer">
+          by Rujira Network
         </a>
       </header>
       <main>
@@ -371,18 +371,14 @@ export function App(): ReactElement {
                       </label>
                     )}
                     <p className="muted">
-                      {isMonero
-                        ? "The Monero companion connects to your chosen node to prepare this transfer."
-                        : signingSource === "keystore"
-                          ? "Your keystore signs on this computer."
-                          : "Check and confirm the request on your device."}{" "}
+                      {signingSource === "keystore"
+                        ? "Your keystore signs on this computer."
+                        : "Check and confirm the request on your device."}{" "}
                       Rujira Connect returns the signed request to the app.
                     </p>
                     {needsPassword && (
                       <label className="field">
-                        {isMonero
-                          ? "Local Monero wallet password"
-                          : "Keystore password"}
+                        Keystore password
                         <input
                           type="password"
                           value={password}
@@ -517,39 +513,39 @@ export function App(): ReactElement {
                               </strong>
                               <div className="account-address">
                                 <code>{account.address}</code>
-                                <button
-                                  className="icon-button"
-                                  title="Copy address"
-                                  aria-label={`Copy ${CHAINS[account.chain].name} address`}
-                                  onClick={() => {
-                                    navigator.clipboard
-                                      .writeText(account.address)
-                                      .then(() => {
-                                        setNotice("Address copied");
-                                      })
-                                      .catch(() => {
-                                        setError("Could not copy address");
-                                      });
-                                  }}>
-                                  <svg
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="1.5"
-                                    aria-hidden="true">
-                                    <rect
-                                      x="8"
-                                      y="8"
-                                      width="12"
-                                      height="12"
-                                      rx="2"
-                                    />
-                                    <path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" />
-                                  </svg>
-                                </button>
                               </div>
                             </div>
                             <div className="account-actions">
+                              <button
+                                className="icon-button"
+                                title="Copy address"
+                                aria-label={`Copy ${CHAINS[account.chain].name} address`}
+                                onClick={() => {
+                                  navigator.clipboard
+                                    .writeText(account.address)
+                                    .then(() => {
+                                      setNotice("Address copied");
+                                    })
+                                    .catch(() => {
+                                      setError("Could not copy address");
+                                    });
+                                }}>
+                                <svg
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="1.5"
+                                  aria-hidden="true">
+                                  <rect
+                                    x="8"
+                                    y="8"
+                                    width="12"
+                                    height="12"
+                                    rx="2"
+                                  />
+                                  <path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" />
+                                </svg>
+                              </button>
                               <button
                                 className="icon-button remove-account"
                                 title="Remove account"
@@ -951,68 +947,19 @@ export function App(): ReactElement {
                     </button>
                   </article>
                 ))}
-                {(chain === "XMR" ||
-                  state.accounts.some(
-                    (account) => account.chain === "XMR"
-                  )) && (
+                {state.accounts.some((account) => account.chain === "XMR") && (
                   <div className="card">
-                    <h2>Monero signing</h2>
+                    <h2>Monero</h2>
                     <p>
-                      Your Monero address connects directly, with no extra
-                      software. To sign transfers, install the Rujira Monero
-                      companion and wallet engine on this computer. The
-                      companion prepares transfers using your chosen node; the
-                      app handles broadcasting.
+                      Monero addresses connect directly. Apps find spendable
+                      outputs, choose ring members, and calculate fees. Connect
+                      signs locally and returns the transaction to the app.
                     </p>
                     <p className="muted">
-                      The companion uses this node to check for payments. The
-                      node can see your IP address; your private view key stays
-                      on this computer.
+                      Transfers support one recipient and change, using Ledger,
+                      Trezor or an unlocked keystore. Your app prepares the
+                      transaction and sends it after signing.
                     </p>
-                    <label className="field">
-                      Node URL
-                      <input
-                        type="url"
-                        value={moneroNode}
-                        onChange={(event) => {
-                          setMoneroNode(event.target.value);
-                        }}
-                      />
-                    </label>
-                    <button
-                      disabled={busy}
-                      onClick={() => {
-                        perform(async () => {
-                          await callUi({
-                            action: "setMoneroNode",
-                            url: moneroNode,
-                          });
-                          setNotice("Monero node updated");
-                        });
-                      }}>
-                      Save node
-                    </button>
-                    <button
-                      className="text-button"
-                      disabled={busy}
-                      onClick={() => {
-                        perform(async () => {
-                          const status = z
-                            .object({
-                              engineAvailable: z.boolean(),
-                              node: z.string(),
-                            })
-                            .parse(await callUi({ action: "companionStatus" }));
-                          setMoneroNode(status.node);
-                          setNotice(
-                            status.engineAvailable
-                              ? "The Monero companion is ready."
-                              : "The companion is connected. Install the Monero engine to finish setting it up."
-                          );
-                        });
-                      }}>
-                      Check companion
-                    </button>
                   </div>
                 )}
                 <div className="card">
@@ -1022,9 +969,9 @@ export function App(): ReactElement {
                     apps prepare transactions and handle the network connection.
                   </p>
                   <p className="muted">
-                    Connect doesn't fetch balances or make RPC requests. Monero
-                    uses a separate companion with a node connection to prepare
-                    transfers.
+                    Connect doesn't fetch balances or make RPC requests. This
+                    includes Monero: your app supplies the data needed to sign
+                    and broadcasts the result.
                   </p>
                 </div>
                 <p className="muted">Rujira Connect · v0.1.0</p>

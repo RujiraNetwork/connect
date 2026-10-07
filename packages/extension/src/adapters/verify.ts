@@ -19,6 +19,7 @@ import { z } from "zod";
 
 import { fromHex, toHex, unbase64 } from "./bytes";
 import { addressFor } from "./keys";
+import { verifyMoneroTransaction } from "./monero-transactions";
 import {
   evmTransaction,
   previousOutput,
@@ -259,20 +260,44 @@ export function verifyResult(
       });
       return;
     }
-    case "signSolanaMessage":
-      ensure(
-        ed25519.verify(
-          unbase64(z.object({ signature: z.string() }).parse(result).signature),
-          fromHex(request.params.message),
-          fromHex(account.publicKey ?? "")
-        )
-      );
+    case "signSolanaMessage": {
+      const response = z
+        .object({ signature: z.string(), signedData: z.string().optional() })
+        .parse(result);
+      const message = fromHex(request.params.message);
+      const publicKey = fromHex(account.publicKey ?? "");
+      let bytes = message;
+      if (response.signedData !== undefined) {
+        // Trezor's Solana off-chain v1 envelope binds one signer and exact UTF-8 bytes.
+        const envelope = new Uint8Array([
+          255,
+          ...new TextEncoder().encode("solana offchain"),
+          1,
+          1,
+          ...publicKey,
+          ...message,
+        ]);
+        bytes = fromHex(response.signedData);
+        ensure(toHex(bytes) === toHex(envelope));
+      }
+      ensure(ed25519.verify(unbase64(response.signature), bytes, publicKey));
       return;
+    }
     case "signXrpTransaction": {
       const tx = decode(
         z.object({ tx_blob: z.string() }).parse(result).tx_blob
       );
       const { SigningPubKey, TxnSignature, ...unsigned } = tx;
+      // Canonical-signature bit changes signing rules, never transfer semantics.
+      const approvedFlags = request.params.Flags;
+      if (
+        typeof unsigned.Flags === "number" &&
+        (approvedFlags === undefined || typeof approvedFlags === "number") &&
+        unsigned.Flags === ((approvedFlags ?? 0) | 0x80000000) >>> 0
+      ) {
+        if (approvedFlags === undefined) delete unsigned.Flags;
+        else unsigned.Flags = approvedFlags;
+      }
       ensure(canonicalJson(unsigned) === canonicalJson(request.params));
       const pubkey = z.string().parse(SigningPubKey);
       const signature = z.string().parse(TxnSignature);
@@ -323,24 +348,8 @@ export function verifyResult(
       ensure(addressFor("TRON", recovered, account.path) === account.address);
       return;
     }
-    case "signMoneroTransfer": {
-      const signed = z
-        .object({
-          transactionHex: z.string().regex(/^(?:[a-f0-9]{2})+$/),
-          transactionHash: z.string().length(64),
-          fee: z.string(),
-          amount: z.string(),
-        })
-        .parse(result);
-      ensure(
-        BigInt(signed.fee) <= BigInt(request.params.maxFee) &&
-          BigInt(signed.amount) ===
-            request.params.destinations.reduce(
-              (sum, entry) => sum + BigInt(entry.amount),
-              0n
-            )
-      );
+    case "signMoneroTransaction":
+      verifyMoneroTransaction(account, request.params, result);
       return;
-    }
   }
 }

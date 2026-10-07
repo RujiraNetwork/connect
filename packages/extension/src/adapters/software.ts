@@ -16,6 +16,8 @@ import { validate, Wallet } from "xrpl";
 
 import { base64, fromHex, toHex } from "./bytes";
 import { addressFor, privateKeyFor, publicKeyFor } from "./keys";
+import { signMoneroSoftware } from "./monero-crypto";
+import { moneroKeys, moneroPublicKeys } from "./monero-keys";
 import {
   evmTransaction,
   previousOutput,
@@ -34,6 +36,14 @@ export function registerSoftware(
   seed: Uint8Array,
   account: Omit<Account, "address" | "publicKey">
 ): Account {
+  if (account.chain === "XMR") {
+    const { address } = moneroKeys(seed, account.path);
+    return {
+      ...account,
+      address,
+      publicKey: moneroPublicKeys(address).publicKey,
+    };
+  }
   const privateKey = privateKeyFor(
     seed,
     account.chain === "THOR" && account.scheme === "eip712"
@@ -64,6 +74,8 @@ export function signSoftware(
   request: SignRequest
 ): unknown {
   validateSignAccount(account, request);
+  if (request.method === "signMoneroTransaction")
+    return signMoneroSoftware(seed, account, request.params);
   const privateKey = privateKeyFor(
     seed,
     account.chain === "THOR" && account.scheme === "eip712"
@@ -230,11 +242,6 @@ export function signSoftware(
           ],
         };
       }
-      case "signMoneroTransfer":
-        throw new ConnectError(
-          ERROR_CODES.unsupported,
-          "Monero signing requires the Rujira companion"
-        );
     }
   } finally {
     privateKey.fill(0);

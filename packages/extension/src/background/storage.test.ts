@@ -6,11 +6,46 @@ import {
   removeAccount,
   mergeHardwareSources,
   saveRegisteredAccount,
+  migrateStoredState,
 } from "./storage";
 
 import type { Account, StoredState } from "@rujira/connect-core";
 
 describe("persisted state mutations", () => {
+  it("preserves Monero account IDs and grants while retiring the native-host signing method", () => {
+    const id = crypto.randomUUID();
+    const sourceId = crypto.randomUUID();
+    for (const source of ["ledger", "trezor", "keystore"] as const) {
+      const state = migrateStoredState({
+        ...structuredClone(EMPTY_STATE),
+        sources: [{ id: sourceId, kind: source, label: "My wallet" }],
+        accounts: [
+          {
+            id,
+            sourceId,
+            source,
+            chain: "XMR",
+            address: "registered-address",
+            path: source === "ledger" ? "device" : "m/44'/128'/0'",
+            label: "My wallet",
+            scheme: "native",
+            verifiedAt: 0,
+            methods: ["signMoneroTransfer"],
+          },
+        ],
+        grants: [
+          { origin: "https://example.com", accountIds: [id], createdAt: 0 },
+        ],
+      });
+      expect(state.accounts[0]).toMatchObject({
+        id,
+        sourceId,
+        address: "registered-address",
+        methods: ["signMoneroTransaction"],
+      });
+      expect(state.grants[0]?.accountIds).toEqual([id]);
+    }
+  });
   const ledger: Account = {
     id: "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa",
     sourceId: "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb",

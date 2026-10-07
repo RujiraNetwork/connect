@@ -42,7 +42,9 @@ import {
   ledgerError,
   moneroLedgerError,
 } from "./ledger-actions";
+import { signLedgerMonero } from "./ledger-monero";
 import { moneroAddress, moneroPublicKeys } from "./monero-keys";
+import { validateMoneroTransaction } from "./monero-transactions";
 import { offlineContext } from "./offline-context";
 import {
   evmTransaction,
@@ -292,24 +294,7 @@ export class LedgerAdapter {
         apdu: number[],
         abortTimeout = 10_000
       ): Promise<Uint8Array> => {
-        const connected = this.moneroDevice;
-        if (!connected)
-          throw new ConnectError(
-            ERROR_CODES.disconnected,
-            "Your Ledger was disconnected."
-          );
-        const response = (
-          await connected.sendApdu(new Uint8Array(apdu), false, abortTimeout)
-        ).caseOf({
-          Left: (error) => {
-            throw ledgerError(error);
-          },
-          Right: (result) => result,
-        });
-        const status =
-          (response.statusCode[0] ?? 0) * 256 + (response.statusCode[1] ?? 0);
-        if (status !== 0x9000) throw moneroLedgerError(status);
-        return response.data;
+        return this.moneroExchange(new Uint8Array(apdu), abortTimeout);
       };
       step = "starting the Monero connection";
       const version = [...new TextEncoder().encode("0.18.4.6")];
@@ -358,6 +343,30 @@ export class LedgerAdapter {
         `Could not finish ${step}. ${failure.message}`
       );
     }
+  }
+
+  private async moneroExchange(
+    apdu: Uint8Array,
+    abortTimeout = 10_000
+  ): Promise<Uint8Array> {
+    const connected = this.moneroDevice;
+    if (!connected)
+      throw new ConnectError(
+        ERROR_CODES.disconnected,
+        "Your Ledger was disconnected."
+      );
+    const response = (
+      await connected.sendApdu(apdu, false, abortTimeout)
+    ).caseOf({
+      Left: (error) => {
+        throw ledgerError(error);
+      },
+      Right: (result) => result,
+    });
+    const status =
+      (response.statusCode[0] ?? 0) * 256 + (response.statusCode[1] ?? 0);
+    if (status !== 0x9000) throw moneroLedgerError(status);
+    return response.data;
   }
 
   private async readAccount(
@@ -505,6 +514,8 @@ export class LedgerAdapter {
     deviceId?: string
   ): Promise<unknown> {
     validateSignAccount(account, request);
+    if (request.method === "signMoneroTransaction")
+      validateMoneroTransaction(account, request.params);
     const verified = await this.register(account, deviceId);
     if (
       verified.account.publicKey !== account.publicKey ||
@@ -515,6 +526,17 @@ export class LedgerAdapter {
         "Connect the Ledger used to register this account"
       );
     const activeDeviceId = verified.deviceId;
+    if (request.method === "signMoneroTransaction") {
+      try {
+        return await signLedgerMonero(
+          account,
+          request.params,
+          (apdu, abortTimeout) => this.moneroExchange(apdu, abortTimeout)
+        );
+      } finally {
+        await this.disconnect();
+      }
+    }
     const sessionId = await this.session(activeDeviceId);
     const path = account.path.replace(/^m\//, "");
     switch (request.method) {
@@ -794,11 +816,6 @@ export class LedgerAdapter {
         throw new ConnectError(
           ERROR_CODES.unsupported,
           "This Ledger app supports Amino signing"
-        );
-      case "signMoneroTransfer":
-        throw new ConnectError(
-          ERROR_CODES.unsupported,
-          "Monero signing uses the companion"
         );
     }
   }

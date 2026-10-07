@@ -96,22 +96,36 @@ export function moneroPublicKeys(address: string): {
   };
 }
 
-export function moneroKeys(
+/** Caller owns these secret buffers and must erase them after use. */
+export function moneroPrivateKeys(
   seed: Uint8Array,
   path: string
-): { spendKey: string; viewKey: string; address: string } {
+): { spend: Uint8Array; view: Uint8Array; address: string } {
   const spend = privateKeyFor(seed, "XMR", path);
   const view = reduced(keccak_256(spend));
   try {
     const publicSpend = ed25519.Point.BASE.multiply(scalar(spend)).toBytes();
     const publicView = ed25519.Point.BASE.multiply(scalar(view)).toBytes();
-    return {
-      spendKey: toHex(spend),
-      viewKey: toHex(view),
-      address: moneroAddress(publicSpend, publicView),
-    };
-  } finally {
+    return { spend, view, address: moneroAddress(publicSpend, publicView) };
+  } catch (error) {
     spend.fill(0);
     view.fill(0);
+    throw error;
+  }
+}
+export function moneroKeys(
+  seed: Uint8Array,
+  path: string
+): { spendKey: string; viewKey: string; address: string } {
+  const keys = moneroPrivateKeys(seed, path);
+  try {
+    return {
+      spendKey: toHex(keys.spend),
+      viewKey: toHex(keys.view),
+      address: keys.address,
+    };
+  } finally {
+    keys.spend.fill(0);
+    keys.view.fill(0);
   }
 }

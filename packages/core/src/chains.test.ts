@@ -6,10 +6,22 @@ import {
   accountPath,
   isDefaultAccountPath,
   validateLedgerAccountPath,
+  supportedMethods,
 } from "./chains";
 import { uiRequestSchema } from "./ui";
 
 describe("account paths and device limits", () => {
+  it("advertises only implemented browser Monero signing methods", () => {
+    expect(supportedMethods("XMR", "ledger")).toEqual([
+      "signMoneroTransaction",
+    ]);
+    expect(supportedMethods("XMR", "keystore")).toEqual([
+      "signMoneroTransaction",
+    ]);
+    expect(supportedMethods("XMR", "trezor")).toEqual([
+      "signMoneroTransaction",
+    ]);
+  });
   it("enforces Ledger Bitcoin's default-wallet limit in both paths and UI requests", () => {
     expect(accountIndexLimit("BTC", "ledger")).toBe(100);
     expect(accountPath("BTC", 100, "ledger")).toBe("m/84'/0'/100'/0/0");

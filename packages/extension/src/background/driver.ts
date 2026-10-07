@@ -6,6 +6,7 @@ import {
   accountSchema,
   supportedMethods,
   uiStateSchema,
+  validateSignAccount,
 } from "@rujira/connect-core";
 import { computeAddress } from "ethers";
 
@@ -21,7 +22,6 @@ import { TrezorAdapter } from "../adapters/trezor";
 import { verifyResult } from "../adapters/verify";
 
 import type { SigningDriver, StateRepository } from "./broker";
-import type { CompanionClient } from "./native";
 import type { Account, UiRequest, UiState } from "@rujira/connect-core";
 
 export class WalletDriver implements SigningDriver {
@@ -29,10 +29,7 @@ export class WalletDriver implements SigningDriver {
   private readonly ledger = new LedgerAdapter();
   private readonly trezor = new TrezorAdapter();
   private busy = false;
-  constructor(
-    private readonly repository: StateRepository,
-    readonly companion: CompanionClient
-  ) {}
+  constructor(private readonly repository: StateRepository) {}
   review: SigningDriver["review"] = reviewRequest;
 
   async state(): Promise<UiState> {
@@ -103,7 +100,6 @@ export class WalletDriver implements SigningDriver {
     this.sessions.lock();
     await this.ledger.disconnect();
     this.trezor.disconnect();
-    this.companion.disconnect();
   }
 
   async register(
@@ -143,7 +139,7 @@ export class WalletDriver implements SigningDriver {
           "The Ethereum app profile is for THORChain hardware accounts"
         );
       const methods = supportedMethods(request.chain, request.source, scheme);
-      if (!methods.length)
+      if (!methods.length && request.chain !== "XMR")
         throw new ConnectError(
           ERROR_CODES.unsupported,
           "This wallet does not support the selected chain and app profile"
@@ -239,10 +235,11 @@ export class WalletDriver implements SigningDriver {
   async sign(
     account: Account,
     request: Parameters<SigningDriver["sign"]>[1],
-    digest: string,
+    _digest: string,
     password?: string
   ): Promise<unknown> {
-    const signed = await this.performSign(account, request, digest, password);
+    validateSignAccount(account, request);
+    const signed = await this.performSign(account, request, password);
     verifyResult(account, request, signed);
     return signed;
   }
@@ -250,7 +247,6 @@ export class WalletDriver implements SigningDriver {
   private async performSign(
     account: Account,
     request: Parameters<SigningDriver["sign"]>[1],
-    digest: string,
     password?: string
   ): Promise<unknown> {
     if (this.busy)
@@ -268,43 +264,6 @@ export class WalletDriver implements SigningDriver {
           ERROR_CODES.unauthorized,
           "This source was removed"
         );
-      if (request.method === "signMoneroTransfer") {
-        if (!password)
-          throw new ConnectError(
-            ERROR_CODES.locked,
-            "Enter the local Monero wallet password."
-          );
-        await this.ledger.disconnect();
-        this.trezor.disconnect();
-        const keys =
-          source.kind === "keystore" &&
-          this.sessions.unlockedUntil(source.id) !== undefined
-            ? moneroKeys(this.sessions.seed(source.id), account.path)
-            : {};
-        await this.companion.request({
-          id: crypto.randomUUID(),
-          method: "register",
-          account,
-          source: source.kind,
-          sourceId: source.id,
-          accountIndex:
-            account.path === "device"
-              ? 0
-              : Number(account.path.split("/")[3]?.replace(/'$/, "")),
-          restoreHeight: 0,
-          password,
-          ...keys,
-        });
-        return await this.companion.request({
-          id: crypto.randomUUID(),
-          method: "sign",
-          account,
-          request,
-          approvalDigest: digest,
-          password,
-          maxFee: request.params.maxFee,
-        });
-      }
       if (source.kind === "keystore") {
         if (password) await this.unlock(source.id, password);
         return signSoftware(this.sessions.seed(source.id), account, request);

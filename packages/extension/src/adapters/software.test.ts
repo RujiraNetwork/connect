@@ -113,7 +113,7 @@ describe("encrypted keystore and deterministic signatures", () => {
     const wallet = new Wallet(
       new SigningKey(privateKeyFor(seed, "ETH", account.path))
     );
-    expect(result).toBe(await wallet.signTransaction(params));
+    expect(result).toBe(await wallet.signTransaction({ ...params, type: 0 }));
     expect(() => {
       verifyResult(
         account,

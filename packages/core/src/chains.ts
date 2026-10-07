@@ -30,7 +30,7 @@ export type SigningMethod =
   | "signSolanaMessage"
   | "signXrpTransaction"
   | "signTronTransaction"
-  | "signMoneroTransfer";
+  | "signMoneroTransaction";
 
 export interface ChainDefinition {
   readonly id: Chain;
@@ -196,7 +196,7 @@ export const CHAINS: Readonly<Record<Chain, ChainDefinition>> = {
     family: "monero",
     path: "m/44'/128'/0'",
     app: "Monero",
-    methods: ["signMoneroTransfer"],
+    methods: ["signMoneroTransaction"],
   },
 };
 

@@ -41,15 +41,15 @@ Each request has `{ accountId, chain, method, params }`. Responses have `{ accou
 | Solana               | `signSolanaMessage`     | `{ message: hexBytes }`                                                                      | `{ signature: base64 }`                               |
 | XRP                  | `signXrpTransaction`    | Prepared canonical XRP transaction JSON                                                      | `{ tx_blob, hash }`                                   |
 | TRON                 | `signTronTransaction`   | Prepared transaction JSON including `raw_data`, `raw_data_hex`, and `txID`                   | Native transaction JSON with signature                |
-| Monero               | `signMoneroTransfer`    | Destinations, priority, accountIndex, maxFee, restoreHeight                                  | `{ transactionHex, transactionHash, fee, amount }`    |
+| Monero               | `signMoneroTransaction` | Prepared native construction data, rings, key images, outputs, and exact fee                 | `{ transactionHex, transactionHash, fee, amount }`    |
 
 UTXO signing supports registered P2PKH and native SegWit paths with SIGHASH_ALL; Bitcoin Cash uses SIGHASH_ALL with FORKID. It checks complete previous transactions, outpoints, amounts, and account scripts. Taproot, arbitrary script policies, and alternate sighash modes are rejected. Supply all input values when relying on the UI’s fee display. Non-owned inputs retain their existing signatures.
 
-| Source   | EVM                        | THORChain                                      | Cosmos Hub   | UTXO                                                                     | Solana                        | XRP                  | TRON                              | Monero                              |
-| -------- | -------------------------- | ---------------------------------------------- | ------------ | ------------------------------------------------------------------------ | ----------------------------- | -------------------- | --------------------------------- | ----------------------------------- |
-| Ledger   | Native Ethereum signer kit | Native THORChain Amino or Ethereum app EIP-712 | Amino        | Bitcoin PSBT/native; Litecoin native; BCH/DOGE native                    | Transaction/message           | Native transaction   | Native transaction                | Patched companion, Monero app       |
-| Trezor   | Official Connect           | Ethereum profile EIP-712 Amino                 | Unavailable  | PSBT/native for supported Bitcoin and Litecoin profiles; BCH/DOGE native | Supported models and firmware | Payment transactions | Supported native contract formats | Patched companion, supported models |
-| Keystore | Native                     | Amino/direct                                   | Amino/direct | PSBT/native                                                              | Transaction/message           | Native transaction   | Native transaction                | Patched companion, derived keys     |
+| Source   | EVM                        | THORChain                                      | Cosmos Hub   | UTXO                                                                     | Solana                        | XRP                  | TRON                              | Monero                                    |
+| -------- | -------------------------- | ---------------------------------------------- | ------------ | ------------------------------------------------------------------------ | ----------------------------- | -------------------- | --------------------------------- | ----------------------------------------- |
+| Ledger   | Native Ethereum signer kit | Native THORChain Amino or Ethereum app EIP-712 | Amino        | Bitcoin PSBT/native; Litecoin native; BCH/DOGE native                    | Transaction/message           | Native transaction   | Native transaction                | Direct prepared signing                   |
+| Trezor   | Official Connect           | Ethereum profile EIP-712 Amino                 | Unavailable  | PSBT/native for supported Bitcoin and Litecoin profiles; BCH/DOGE native | Supported models and firmware | Payment transactions | Supported native contract formats | Direct prepared signing, supported models |
+| Keystore | Native                     | Amino/direct                                   | Amino/direct | PSBT/native                                                              | Transaction/message           | Native transaction   | Native transaction                | Local prepared signing                    |
 
 These are implemented paths, not a certification of every firmware/model combination. Query account capabilities and handle an unsupported request. Trezor XRP currently supports simple prepared Payment transactions; advanced XRP fields and unsupported TRON contracts fail explicitly. THORChain uses its custom Cosmos Web3 domain types, including string-valued contract and salt fields. Its EIP-712 adapter validates the dapp's prepared representation against the approved Amino document. Add a top-level `typedData` field to the `signAmino` request for an Ethereum-app THORChain account; `params` remains the standard Amino document. The prepared representation uses primary type `Tx` and the Cosmos Web3 domain from THORChain. Every approved Amino field must be included. No node conversion is performed inside Connect.
 
@@ -84,21 +84,25 @@ Rujira Connect registers through Wallet Standard with `standard:connect`, `stand
 ## Monero request
 
 ```ts
+import { preparedMoneroTransactionSchema } from "@rujira/connect";
+
+// Prepare native construction data in the dapp's Monero wallet engine.
+const prepared = preparedMoneroTransactionSchema.parse(constructionData);
+if (!account.methods.includes("signMoneroTransaction")) {
+  throw new Error("This account does not support the requested Monero format");
+}
 const result = await provider.request({
   accountId: account.id,
   chain: "XMR",
-  method: "signMoneroTransfer",
-  params: {
-    destinations: [{ address: recipient, amount: "100000000000" }],
-    priority: 1,
-    accountIndex: 0,
-    restoreHeight: 0,
-    maxFee: "10000000000",
-  },
+  method: "signMoneroTransaction",
+  params: prepared,
 });
+// The dapp decides whether and where to broadcast result.payload.transactionHex.
 ```
 
-Amounts and fees are piconero. Addresses register directly and offline; the companion is needed only for signing. Ledger's account path is `device`, meaning the wallet selected in its Monero app. Trezor uses a hardened account path. The first signing request creates a native wallet bound to the registered address and scans from height zero; `restoreHeight` in a transfer does not change an existing wallet's scan settings. `accountIndex` inside a transfer must be zero. Monero is the only network exception. The companion refreshes outputs before signing because the current hardware engine uses its transfer-preparation path; the standard unsigned-transfer API rejects hardware wallets. The dapp still handles broadcasting. Standard memo-less transfers are supported; use THORChain’s current memo-less deposit instructions for Monero. Integrated addresses remain subject to the native engine’s validation. Requests above JSON’s safe integer limit are rejected rather than rounded.
+The dapp scans, discovers spendable outputs, synchronizes key images, obtains decoys, estimates fees, and prepares the transaction. Connect validates the construction data, displays the recipient and exact fee, obtains device approval, and returns native transaction bytes without contacting a node. There is no destination-only transfer API, automatic scan, fee selection, or RPC URL in Connect.
+
+Ledger, Trezor and encrypted keystores sign prepared transfers with one standard mainnet recipient and change, 16-member rings, CLSAG and Bulletproof+. Use `format: "monero-prepared-v1"`; the older `trezor-monero-v1` name remains accepted. See [Monero contract and limits](monero.md).
 
 ## Errors and lifecycle
 
@@ -116,3 +120,7 @@ Amounts and fees are piconero. Addresses register directly and offline; the comp
 | -32603 | Internal signing error                                 |
 
 An approval expires after five minutes. Page navigation, closing its approval window, account/source removal, and locking cancel pending requests. Origin permissions are checked again before returning signed data. Only one approval/device operation runs at a time. Site requests are limited to 30 per minute. A restarted service worker locks software sessions; a subsequent request reconnects the content bridge automatically.
+
+## Solana message results
+
+Ledger and keystore `signSolanaMessage` return `{ signature }`, with a base64 signature over the requested hex message bytes. Current Trezor firmware signs the Solana off-chain v1 envelope and returns `{ signature, signedData }`; `signedData` contains the exact signed envelope as hex. Connect checks the envelope's domain, version, sole signer and message bytes before accepting the signature. Trezor supports UTF-8 messages; binary messages fail explicitly. Dapps must verify the returned signed bytes when this field is present.
