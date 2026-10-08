@@ -12,6 +12,7 @@ import {
 import { RequestBroker } from "./broker";
 import { WalletDriver } from "./driver";
 import { blockNetwork } from "./offline";
+import { activateSite } from "./site";
 import { ChromeStateRepository, removeAccount } from "./storage";
 
 import type { UiRequest } from "@rujira/connect-core";
@@ -186,6 +187,8 @@ async function ui(request: UiRequest): Promise<unknown> {
   switch (request.action) {
     case "state":
       return driver.state();
+    case "activateSite":
+      return activateSite(request.windowId);
     case "pending":
       return broker.view(request.id);
     case "approve":
@@ -271,6 +274,19 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
       error: {
         code: ERROR_CODES.invalid,
         message: "Invalid extension request",
+      },
+    });
+    return false;
+  }
+  if (
+    parsed.data.action === "activateSite" &&
+    new URL(sender.url ?? "").searchParams.get("view") !== "popup"
+  ) {
+    respond({
+      ok: false,
+      error: {
+        code: ERROR_CODES.unauthorized,
+        message: "Open Connect from the browser toolbar to enable this site.",
       },
     });
     return false;

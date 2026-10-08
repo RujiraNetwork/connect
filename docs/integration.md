@@ -2,6 +2,8 @@
 
 Dapps request access to locally registered accounts, inspect capabilities, and submit native signing data. Account IDs identify a source, network, derivation path, and address profile. An address alone does not identify which signer to use.
 
+Users first open Rujira Connect from Chrome's toolbar on the app's page. This temporarily enables the provider in that document without granting persistent access to all sites. After a reload or navigation, users open Connect again. Accept EIP-6963 announcements and Solana Wallet Standard registrations that arrive after page load. For the typed API, call `getRujira()` at connection time; if it is unavailable, ask the user to open the toolbar popup and retry. Saved account grants remain scoped to their approved origins and do not automatically enable new tabs.
+
 ## Address permissions
 
 ```ts

@@ -1,0 +1,1 @@
+Connect your Ledger, Trezor or encrypted keystore to web apps. Share addresses and sign requests locally.

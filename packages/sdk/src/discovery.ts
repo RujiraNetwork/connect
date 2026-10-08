@@ -38,6 +38,8 @@ export function installProvider(target: Window): RujiraProvider {
 
 export function getRujira(): RujiraProvider {
   if (!window.rujira)
-    throw new Error("Install Rujira Connect to connect a signing account");
+    throw new Error(
+      "Open Rujira Connect from your browser toolbar on this page, then try connecting again."
+    );
   return window.rujira;
 }

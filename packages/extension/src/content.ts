@@ -5,7 +5,12 @@ import {
   pageMessageSchema,
 } from "@rujira/connect-core";
 
-if (window === window.top) {
+// This state belongs to Chrome's isolated world; the page cannot spoof it.
+const key = Symbol.for("rujira.connect.bridge");
+const bridges = globalThis as typeof globalThis & { [key]?: boolean };
+
+if (window === window.top && !bridges[key]) {
+  bridges[key] = true;
   let port: chrome.runtime.Port | undefined;
   const pending = new Set<string>();
   let active = true;
@@ -73,5 +78,8 @@ if (window === window.top) {
   window.addEventListener("pagehide", () => {
     active = false;
     port?.disconnect();
+  });
+  window.addEventListener("pageshow", () => {
+    active = true;
   });
 }

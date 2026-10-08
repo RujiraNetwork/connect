@@ -1,0 +1,52 @@
+Rujira Connect — Chrome Web Store Privacy practices
+
+Single purpose description
+Rujira Connect lets web apps request user-approved wallet addresses and signatures from directly connected Ledger and Trezor devices or locally unlocked encrypted keystores. Connection and signing run locally. The connecting app handles transaction preparation, balances and broadcasting.
+
+Alarms justification
+Alarms schedule the five-minute automatic lock for an unlocked keystore. When the alarm fires, Connect clears the decrypted session from memory. Session expiry is also checked before every use. This limits how long an unlocked keystore can sign without another password entry. Alarms are not used for polling, notifications or network requests.
+
+Storage justification
+Storage saves registered public addresses and public keys, network and account-path metadata, device labels, encrypted keystore files and the account permissions granted to each connected site. This lets users keep their accounts and site permissions between browser sessions. Data stays in local extension storage; Connect does not use Chrome sync or send it to a backend. Passwords, PINs, passphrases and decrypted keystore seeds are not persisted.
+
+ActiveTab justification
+ActiveTab gives Connect temporary access to the current tab when the user clicks its browser toolbar icon. Connect enables its wallet connection on that selected page only. Other pages receive no provider automatically. The user separately approves which accounts to share and each signing request. Chrome revokes the temporary access when the user navigates to a different origin or closes the tab. Connect does not request persistent host access.
+
+Scripting justification
+Scripting adds the extension's packaged wallet provider and message bridge to the selected tab after toolbar activation. The bridge connects the app's address and signing requests to the local approval flow. It runs in the top-level document only, on HTTPS or localhost pages. It does not scrape page text, read cookies, load remote code or make network requests. Injection is limited by the temporary activeTab grant; no scripts run automatically across websites.
+
+Host permission use
+The 0.1.2 package has no host_permissions, optional_host_permissions or static content-script site matches. Broad HTTPS matching was removed and replaced with user-initiated activeTab access. If the dashboard still displays a host permission justification field after uploading this package, use: Connect accesses only the current tab after the user opens its toolbar popup, through temporary activeTab access. It installs the bundled wallet bridge on that page and requires separate account and signing approval. It does not request persistent access to any site.
+
+Remote code
+Select: No, I am not using remote code.
+
+If an explanation field is shown:
+All JavaScript, signing libraries and WebAssembly are included in the extension package. Connect does not download or execute code from a website, CDN or hosted wallet service. The wasm-unsafe-eval content security policy entry allows compilation of the packaged Monero cryptography module. It does not enable JavaScript eval or remotely hosted code. The extension's connection policy is connect-src 'none', and its background fetch guard rejects network requests.
+
+Data usage and certification
+Local processing still counts as handling user data under Google's policy. Based on the implementation, disclose these types:
+
+- Financial and payment information: wallet addresses, public keys and transaction/signing request data.
+- Authentication information: keystore passwords and, when a Trezor asks for them, PIN, passphrase and pairing responses. These are processed locally and are not persisted.
+- Website content: message and transaction request payloads explicitly sent by a connecting app. Connect does not scrape the page.
+- Web history: the requesting app's origin, used to show the site, enforce account access and save approved site grants. Connect does not query Chrome's browsing history or record unrelated browsing activity.
+
+Public addresses and signed results are returned to the requesting app only through the user-approved connection and signing flows. Wallet credentials and decrypted keystore material are not sent to the app. Connect has no analytics, advertising or backend data collection. The publisher must complete the limited-use certification checkboxes in Privacy practices and ensure these disclosures match the published privacy policy and publisher practices.
+
+Publisher contact email
+Enter a contact email you control in the developer dashboard's Settings/account page. Request verification and follow the link Google sends to that inbox. A source-code change cannot satisfy these account requirements.
+
+Reviewed permissions
+Kept: storage and alarms.
+Added: activeTab and scripting for user-initiated connection on the selected page.
+Removed: all static HTTPS and localhost content-script matches. Local dapps use the same toolbar activation as HTTPS apps; no separate development permission build is needed. The store build declares no host_permissions, optional_host_permissions, tabs, history, cookies, network interception or native messaging permission.
+
+Google references
+https://developer.chrome.com/docs/webstore/cws-dashboard-privacy
+https://developer.chrome.com/docs/extensions/develop/concepts/declare-permissions
+https://developer.chrome.com/docs/extensions/develop/concepts/activeTab
+https://developer.chrome.com/docs/extensions/reference/api/scripting
+https://developer.chrome.com/docs/extensions/develop/migrate/remote-hosted-code
+https://developer.chrome.com/docs/webstore/program-policies/user-data-faq
+https://developer.chrome.com/docs/webstore/set-up-account

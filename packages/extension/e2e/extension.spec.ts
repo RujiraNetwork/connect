@@ -14,6 +14,7 @@ import { encryptToKeyStore } from "@xchainjs/xchain-crypto";
 import { verifyMessage } from "ethers";
 import { z } from "zod";
 
+import { activateConnect } from "./activation";
 import { fromHex } from "../src/adapters/bytes";
 import {
   initSync,
@@ -29,14 +30,33 @@ test("registers, scopes permissions, signs, rejects, and locks in the unpacked e
   const context = await chromium.launchPersistentContext(profile, {
     channel: "chromium",
     headless: true,
-    args: [`--disable-extensions-except=${path}`, `--load-extension=${path}`],
+    args: [
+      `--disable-extensions-except=${path}`,
+      `--load-extension=${path}`,
+      "--enable-unsafe-extension-debugging",
+    ],
   });
   const errors: string[] = [];
   const outbound: string[] = [];
+  // Serve the local fixture over synthetic HTTPS origins to exercise the exact
+  // store manifest. Requests stay inside the test runner's local web server.
+  const fixtureOrigins = new Set([
+    "https://dapp.example",
+    "https://other-dapp.example",
+  ]);
+  for (const origin of fixtureOrigins)
+    await context.route(`${origin}/**`, async (route) => {
+      const request = new URL(route.request().url());
+      await route.fulfill({
+        response: await route.fetch({
+          url: `http://127.0.0.1:5174${request.pathname}${request.search}`,
+        }),
+      });
+    });
   context.on("request", (request) => {
     const url = new URL(request.url());
     if (
-      url.protocol === "https:" ||
+      (url.protocol === "https:" && !fixtureOrigins.has(url.origin)) ||
       (url.protocol === "http:" &&
         url.hostname !== "127.0.0.1" &&
         url.hostname !== "localhost")
@@ -53,6 +73,20 @@ test("registers, scopes permissions, signs, rejects, and locks in the unpacked e
       context.serviceWorkers()[0] ??
       (await context.waitForEvent("serviceworker"));
     const id = new URL(worker.url()).hostname;
+    const manifest = await worker.evaluate(() => chrome.runtime.getManifest());
+    expect(manifest.permissions).toEqual([
+      "storage",
+      "alarms",
+      "activeTab",
+      "scripting",
+    ]);
+    expect(manifest.host_permissions).toBeUndefined();
+    expect(manifest.optional_host_permissions).toBeUndefined();
+    expect(manifest.content_scripts).toBeUndefined();
+    const localPage = await context.newPage();
+    await localPage.goto("http://127.0.0.1:5174");
+    expect(await localPage.evaluate(() => Boolean(window.rujira))).toBe(false);
+    await localPage.close();
     const manager = await context.newPage();
     await manager.goto(`chrome-extension://${id}/index.html`);
     await manager
@@ -81,6 +115,17 @@ test("registers, scopes permissions, signs, rejects, and locks in the unpacked e
     await expect(manager.getByRole("status")).toContainText(
       "Keystore imported"
     );
+    const imported = responseSchema.parse(
+      await manager.evaluate(() =>
+        chrome.runtime.sendMessage({ action: "state" })
+      )
+    );
+    if (!imported.ok) throw new Error(imported.error.message);
+    const unlocked = uiStateSchema.parse(imported.result).unlocked[0];
+    if (!unlocked) throw new Error("Imported keystore should be unlocked");
+    expect(await worker.evaluate(() => chrome.alarms.getAll())).toMatchObject([
+      { name: `lock:${unlocked.sourceId}`, scheduledTime: unlocked.expiresAt },
+    ]);
     await manager
       .getByRole("combobox", { name: "Imported keystore", exact: true })
       .selectOption({ label: "My keystore" });
@@ -178,10 +223,9 @@ test("registers, scopes permissions, signs, rejects, and locks in the unpacked e
       .click();
 
     const dapp = await context.newPage();
-    await dapp.goto("http://127.0.0.1:5174");
-    await expect
-      .poll(() => dapp.evaluate(() => Boolean(window.rujira)))
-      .toBe(true);
+    await dapp.goto("https://dapp.example");
+    expect(await dapp.evaluate(() => Boolean(window.rujira))).toBe(false);
+    await activateConnect(dapp, id, manager);
     expect(await dapp.evaluate(() => window.rujira?.getAccounts())).toEqual([]);
     let approval = await openApproval(dapp, "Connect registered accounts");
     await approval
@@ -234,7 +278,11 @@ test("registers, scopes permissions, signs, rejects, and locks in the unpacked e
     await approval.close();
 
     const otherOrigin = await context.newPage();
-    await otherOrigin.goto("http://localhost:5174");
+    await otherOrigin.goto("https://other-dapp.example");
+    expect(await otherOrigin.evaluate(() => Boolean(window.rujira))).toBe(
+      false
+    );
+    await activateConnect(otherOrigin, id, manager);
     expect(
       await otherOrigin.evaluate(() => window.rujira?.getAccounts())
     ).toEqual([]);

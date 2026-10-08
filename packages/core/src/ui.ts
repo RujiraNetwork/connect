@@ -20,6 +20,10 @@ export const devicePromptSchema = z
   .strict();
 export type DevicePrompt = z.infer<typeof devicePromptSchema>;
 
+export const siteActivationSchema = z
+  .object({ origin: z.string().url().nullable() })
+  .strict();
+
 export const uiStateSchema = z
   .object({
     accounts: z.array(accountSchema),
@@ -38,6 +42,12 @@ export type UiState = z.infer<typeof uiStateSchema>;
 export const uiRequestSchema = z
   .discriminatedUnion("action", [
     z.object({ action: z.literal("state") }).strict(),
+    z
+      .object({
+        action: z.literal("activateSite"),
+        windowId: z.number().int().nonnegative(),
+      })
+      .strict(),
     z.object({ action: z.literal("pending"), id: z.string().uuid() }).strict(),
     z
       .object({

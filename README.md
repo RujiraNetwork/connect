@@ -19,7 +19,8 @@ Install the isolated test browser once with `pnpm exec playwright install chromi
 1. Open Chrome’s `chrome://extensions`, enable Developer mode, and choose **Load unpacked**.
 2. Select `packages/extension/dist` after building.
 3. Open Rujira Connect, choose **Add an account**, select a source and network, and confirm the address on the device. Ledger pairing uses the browser’s HID chooser. Trezor uses the bundled official Connect engine over direct WebUSB, with local PIN/passphrase/pairing prompts. No hosted Suite page is loaded.
-4. Run `pnpm dev:example`, open `http://127.0.0.1:5174`, and connect registered accounts. Every signing request opens a separate approval window. Use desktop Chrome 118 or later.
+4. On the app's page, click Rujira Connect in Chrome's toolbar to enable the connection. Return to the app to choose which accounts to share. Repeat this after reloading or navigating to a new page. Each signing request opens a separate approval window. Use desktop Chrome 118 or later.
+5. For a local dapp, run `pnpm dev:example` and open `http://127.0.0.1:5174`, then click the Connect toolbar icon on that page. The same build supports HTTPS sites and localhost; it has no persistent host permissions.
 
 `pnpm dev` runs a visual UI preview at port 5173. Signing APIs work inside the installed extension; the web preview shows the same interface without extension privileges.
 
@@ -51,6 +52,8 @@ const result = await signer.request({
 ```
 
 The SDK also supplies EIP-6963 discovery with an EIP-1193 signing provider, Cosmos offline signers, and Solana Wallet Standard registration. It does not replace an RPC provider. See [Integration](docs/integration.md) for request formats, standard interfaces, error codes, and events. The example app keeps broadcasting visibly outside the extension.
+
+Provider discovery starts after the user clicks the Connect toolbar icon on the current page. Dapps should accept late EIP-6963 announcements or Solana wallet registration, and call `getRujira()` when the user connects rather than caching it before activation.
 
 ## Project structure
 

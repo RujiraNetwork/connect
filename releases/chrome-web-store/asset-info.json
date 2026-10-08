@@ -1,0 +1,34 @@
+{
+  "product": "Rujira Connect",
+  "version": "0.1.2",
+  "images": [
+    {
+      "file": "icon-128.png",
+      "width": 128,
+      "height": 128,
+      "transparency": true
+    },
+    {
+      "file": "screenshot-1280x800.png",
+      "width": 1280,
+      "height": 800,
+      "transparency": false
+    },
+    {
+      "file": "promo-small-440x280.png",
+      "width": 440,
+      "height": 280,
+      "transparency": false
+    },
+    {
+      "file": "promo-marquee-1400x560.png",
+      "width": 1400,
+      "height": 560,
+      "transparency": false
+    }
+  ],
+  "screenshot": "Actual packaged extension with synthetic public accounts in an isolated temporary Chrome profile. Addresses were derived locally from two random seeds, which were discarded. No physical devices or existing wallet data were used.",
+  "branding": "Connect SVG supplied by the user; palette and fonts follow ../ui and the existing extension.",
+  "specifications": "https://developer.chrome.com/docs/webstore/images",
+  "regenerate": "pnpm build:store-assets"
+}

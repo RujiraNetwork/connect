@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "id": "5c7ce34f-9841-424f-945a-54fdcad44f28",
+      "kind": "ledger",
+      "label": "Ledger Nano X",
+      "deviceName": "Ledger Nano X"
+    },
+    {
+      "id": "6a7533c6-2249-4be3-a724-5984b9f56797",
+      "kind": "trezor",
+      "label": "Trezor Safe 3",
+      "deviceName": "Trezor Safe 3"
+    }
+  ],
+  "accounts": [
+    {
+      "id": "8047fd20-9282-40ce-b516-277abb6e9ed4",
+      "sourceId": "5c7ce34f-9841-424f-945a-54fdcad44f28",
+      "source": "ledger",
+      "chain": "BTC",
+      "address": "bc1qt8zcne5zlg5skl22m9486etfjwqt0amfh9w3lu",
+      "publicKey": "02a8c2f14f80b12fee38d89f9266e30bcb44a43128a39bec888c753f87da94555e",
+      "path": "m/84'/0'/0'/0/0",
+      "label": "Bitcoin 1",
+      "scheme": "native",
+      "verifiedAt": 1791443570891,
+      "methods": ["signPsbt", "signUtxoTransaction"]
+    },
+    {
+      "id": "f08592bc-fb04-4dca-bcd4-5cfa11511495",
+      "sourceId": "6a7533c6-2249-4be3-a724-5984b9f56797",
+      "source": "trezor",
+      "chain": "XMR",
+      "address": "46ZDVko8X6L2FJTh1FeYsVVFqyJmwUcbu38PhQoZW89NbT9NTALfs8ZVR8HwDmUULJAeEeizrVaWtPZxytqBkvbeAuJdSRo",
+      "publicKey": "822bbb63e918450773e79aafab8d74a8ee639ca380912c0cb817c02a5080e9cdf7b89106dc827ea9e34f54789c8c2339a54b98832a7d3986ed6cbb0ce26f6557",
+      "path": "m/44'/128'/0'",
+      "label": "Monero 1",
+      "scheme": "native",
+      "verifiedAt": 1791443570950,
+      "methods": ["signMoneroTransaction"]
+    },
+    {
+      "id": "f1e77ee1-c9e8-4732-94fd-b7f71d48598f",
+      "sourceId": "5c7ce34f-9841-424f-945a-54fdcad44f28",
+      "source": "ledger",
+      "chain": "THOR",
+      "address": "thor14rdd9u4h74shv883lylrqgez9ppqpd68wjgdj8",
+      "publicKey": "0362232a879510f6f0d7619811a9a94573bbf52c40b9ca187a656cad793a175959",
+      "path": "m/44'/931'/0'/0/0",
+      "label": "THORChain 1",
+      "scheme": "native",
+      "verifiedAt": 1791443570954,
+      "methods": ["signAmino"]
+    },
+    {
+      "id": "14323e7f-b1f7-4ba2-a5f0-bc3ca4d60d4d",
+      "sourceId": "6a7533c6-2249-4be3-a724-5984b9f56797",
+      "source": "trezor",
+      "chain": "THOR",
+      "address": "thor1wclxxcp0h3m0dj7sagxajyhgkh34v08xphfwkf",
+      "publicKey": "033579f6e049b12b056fcb2651eaaae29dda39f56e626e295e1878c2c60020692f",
+      "path": "m/44'/60'/0'/0/0",
+      "label": "THORChain 1",
+      "scheme": "eip712",
+      "verifiedAt": 1791443570958,
+      "methods": ["signAmino"]
+    }
+  ],
+  "grants": []
+}

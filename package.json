@@ -22,6 +22,7 @@
     "format:check": "prettier --check .",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "build:icons": "tsx scripts/build-icons.ts",
+    "build:store-assets": "tsx scripts/build-store-assets.ts",
     "build:monero": "tsx scripts/build-monero-kernel.ts"
   },
   "devDependencies": {

@@ -3,6 +3,8 @@ import { resolve } from "node:path";
 
 import { build } from "tsup";
 
+import { version } from "../packages/extension/package.json";
+
 await build({
   config: false,
   entry: {
@@ -29,7 +31,7 @@ for (const size of [16, 32, 48, 128])
 const manifest = {
   manifest_version: 3,
   name: "Rujira Connect",
-  version: "0.1.0",
+  version,
   description: "Connect hardware wallets and sign app requests offline.",
   minimum_chrome_version: "118",
   action: {
@@ -37,23 +39,7 @@ const manifest = {
     default_popup: "index.html?view=popup",
   },
   background: { service_worker: "background.js", type: "module" },
-  permissions: ["storage", "alarms"],
-  content_scripts: [
-    {
-      matches: ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"],
-      js: ["page.global.js"],
-      run_at: "document_start",
-      world: "MAIN",
-      all_frames: false,
-    },
-    {
-      matches: ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"],
-      js: ["content.global.js"],
-      run_at: "document_start",
-      world: "ISOLATED",
-      all_frames: false,
-    },
-  ],
+  permissions: ["storage", "alarms", "activeTab", "scripting"],
   content_security_policy: {
     extension_pages:
       "script-src 'self' 'wasm-unsafe-eval'; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-src 'none'; frame-ancestors 'none'",

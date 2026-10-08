@@ -1,0 +1,21 @@
+Use your hardware wallet with web apps.
+
+Rujira Connect reads addresses from your Ledger or Trezor and lets you review and sign requests from connected apps. You can also import a supported encrypted keystore and sign locally on your computer.
+
+Add an account
+Plug in your device, choose a network and add an account. Connect reads the address directly from your hardware wallet. Bitcoin, Monero and THORChain are supported, alongside other networks. Availability depends on your device, firmware and installed apps.
+
+Choose what an app can access
+Open Connect from your browser toolbar on the app's page, then return to the app to choose which accounts to share. Open Connect again after reloading or moving to a new page. Review each signing request in Connect. For a hardware account, confirm it on your device. Connect returns the signed request to the app.
+
+Keep connection and signing local
+Connect makes no network requests. It does not query balances, contact network nodes or broadcast transactions. The connecting app handles transaction preparation and network activity, including the network work needed for Monero.
+
+Manage your accounts
+See which device each account belongs to, copy an address or remove an account. Removing an account also removes its access from connected sites. You can disconnect a site whenever you need to.
+
+Use an encrypted keystore
+Import a THORChain or XChain keystore and unlock it locally. It locks again after five minutes, and you can lock it yourself at any time.
+
+By Rujira Network
+https://rujira.network/

@@ -177,7 +177,7 @@ test("registers Cosmos and Monero through bundled WebHID and groups one Nano S i
     ).toHaveCount(0);
     expect(
       await worker.evaluate(() => chrome.runtime.getManifest().permissions)
-    ).toEqual(["storage", "alarms"]);
+    ).toEqual(["storage", "alarms", "activeTab", "scripting"]);
     await manager.screenshot({
       path: "test-results/rujira-connect-settings.png",
       fullPage: true,

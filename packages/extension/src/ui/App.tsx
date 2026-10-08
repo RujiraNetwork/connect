@@ -9,6 +9,7 @@ import {
   accountPath,
   isDefaultAccountPath,
   pendingViewSchema,
+  siteActivationSchema,
   uiStateSchema,
 } from "@rujira/connect-core";
 import { useCallback, useEffect, useState } from "react";
@@ -18,6 +19,7 @@ import { callUi, chooseLedger, chooseTrezor, messageOf } from "./api";
 import { DevicePrompt, DevicePromptFields } from "./DevicePrompt";
 import { Logo } from "./Logo";
 import { NetworkIcon } from "./NetworkIcon";
+import { version } from "../../package.json";
 
 import type {
   Chain,
@@ -43,6 +45,7 @@ export function App(): ReactElement {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [site, setSite] = useState("Opening this page’s connection…");
   const [done, setDone] = useState(false);
   const [completion, setCompletion] = useState("");
   const [sourceKind, setSourceKind] = useState<SourceKind>("ledger");
@@ -62,6 +65,32 @@ export function App(): ReactElement {
   const load = useCallback(async (): Promise<void> => {
     setState(uiStateSchema.parse(await callUi({ action: "state" })));
   }, []);
+  useEffect(() => {
+    if (!popup) return;
+    let active = true;
+    chrome.windows
+      .getCurrent()
+      .then(async (window) => {
+        if (window.id === undefined) throw new Error("Missing browser window");
+        return siteActivationSchema.parse(
+          await callUi({ action: "activateSite", windowId: window.id })
+        );
+      })
+      .then(({ origin }) => {
+        if (active)
+          setSite(
+            origin
+              ? `Ready for ${new URL(origin).host}. Go back to the app to choose accounts or request a signature.`
+              : "Open a web app and click Connect in your browser toolbar to use your accounts on that page."
+          );
+      })
+      .catch((reason: unknown) => {
+        if (active) setSite(messageOf(reason));
+      });
+    return () => {
+      active = false;
+    };
+  }, [popup]);
   useEffect(() => {
     let active = true;
     callUi({ action: "state" })
@@ -459,6 +488,7 @@ export function App(): ReactElement {
           )
         ) : (
           <>
+            {popup && <p className="hint site-connection">{site}</p>}
             {state.sources.some((source) => source.kind === "keystore") && (
               <div className="toolbar">
                 <span className={`status ${unlocked ? "unlocked" : ""}`}>
@@ -1067,7 +1097,7 @@ export function App(): ReactElement {
                     and broadcasts the result.
                   </p>
                 </div>
-                <p className="muted">Rujira Connect · v0.1.0</p>
+                <p className="muted">Rujira Connect · v{version}</p>
               </section>
             )}
           </>
@@ -1075,7 +1105,7 @@ export function App(): ReactElement {
       </main>
       <footer>
         <span>RUJIRA CONNECT</span>
-        <span>v0.1.0</span>
+        <span>v{version}</span>
       </footer>
     </div>
   );
